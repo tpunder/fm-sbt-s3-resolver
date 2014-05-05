@@ -1,0 +1,10 @@
+target
+.cache
+.scala_dependencies
+.target
+.classpath
+.project
+.settings
+.worksheet
+.idea
+.idea_modules
