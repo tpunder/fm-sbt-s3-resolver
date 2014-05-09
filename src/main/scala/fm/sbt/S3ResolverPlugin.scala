@@ -19,6 +19,7 @@ import sbt._
 import Keys._
 
 import java.net.{URL, URLStreamHandler, URLStreamHandlerFactory}
+import org.apache.ivy.util.Message
 import org.apache.ivy.util.url.{URLHandlerDispatcher, URLHandlerRegistry}
 
 /**
@@ -47,13 +48,40 @@ object S3ResolverPlugin extends Plugin {
     }
   }
   
-  // This allows us to create s3:// urls without throwing a MalformedURLException
-  URL.setURLStreamHandlerFactory(S3URLStreamHandlerFactory)
+  // We need s3:// URLs to work without throwing a java.net.MalformedURLException
+  // which means installeing a dummy URLStreamHandler.  We only install the handler
+  // if it's not already installed (since a second call to URL.setURLStreamHandlerFactory
+  // will fail).
+  try {
+    new URL("s3://example.com")
+    info("The s3:// URLStreamHandler is already installed")
+  } catch {
+    // This means we haven't installed the handler, so install it
+    case _: java.net.MalformedURLException => 
+      info("Installing the s3:// URLStreamHandler via java.net.URL.setURLStreamHandlerFactory")
+      URL.setURLStreamHandlerFactory(S3URLStreamHandlerFactory)
+  }
   
-  // This sets up the Ivy URLHandler for s3:// urls
-  private val dispatcher: URLHandlerDispatcher = new URLHandlerDispatcher
-  dispatcher.setDefault(URLHandlerRegistry.getDefault())
+  //
+  // This sets up the Ivy URLHandler for s3:// URLs
+  //
+  private val dispatcher: URLHandlerDispatcher = URLHandlerRegistry.getDefault() match {
+    // If the default is already a URLHandlerDispatcher then just use that
+    case disp: URLHandlerDispatcher =>
+      info("Using the existing Ivy URLHandlerDispatcher to handle s3:// URLs")
+      disp
+    // Otherwise create a new URLHandlerDispatcher
+    case default =>
+      info("Creating a new Ivy URLHandlerDispatcher to handle s3:// URLs")
+      val disp: URLHandlerDispatcher = new URLHandlerDispatcher()
+      disp.setDefault(default)
+      URLHandlerRegistry.setDefault(disp)
+      disp
+  }
+  
+  // Register (or replace) the s3 handler
   dispatcher.setDownloader("s3", new S3URLHandler)
   
-  URLHandlerRegistry.setDefault(dispatcher)
+  // Not sure how to log using SBT so I'm using Ivy's Message class
+  private def info(msg: String): Unit = Message.info(msg)
 }
