@@ -15,7 +15,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 
 ### Add this to your project/plugins.sbt file:
 
-    addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.1.0")
+    addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.2.0")
 
 ### S3 Credentials
 
