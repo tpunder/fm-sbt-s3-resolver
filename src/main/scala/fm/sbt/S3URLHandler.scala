@@ -51,6 +51,7 @@ final class S3URLHandler extends URLHandler {
     val providers = Vector(
       new EnvironmentVariableCredentialsProvider(),
       new SystemPropertiesCredentialsProvider(),
+      makePropertiesFileCredentialsProvider(s".s3credentials_"+bucket),
       makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
       makePropertiesFileCredentialsProvider(".s3credentials"),
       new InstanceProfileCredentialsProvider()
