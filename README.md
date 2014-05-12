@@ -1,6 +1,8 @@
+# Frugal Mechanic SBT S3 Resolver
+
 This SBT plugin adds support for using Amazon S3 for resolving and publishing using s3:// urls.
 
-# Example
+## Example
 
 ### Resolving Dependencies via S3
 
@@ -11,7 +13,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
     publishTo := Some("FrugalMechanic Snapshots" at "s3://maven.frugalmechanic.com/snapshots")
 
 
-# Usage
+## Usage
 
 ### Add this to your project/plugins.sbt file:
 
@@ -40,6 +42,14 @@ The property files should have the following format:
     accessKey = XXXXXXXXXX
     secretKey = XXXXXXXXXX
 
-# License
+## Authors
 
-Licensed under the Apache License, Version 2.0.  See the LICENSE file for details.
+Tim Underwood (<a href="https://github.com/tpunder" rel="author">GitHub</a>, <a href="https://www.linkedin.com/in/tpunder" rel="author">LinkedIn</a>, <a href="https://twitter.com/tpunder" rel="author">Twitter</a>, <a href="https://plus.google.com/+TimUnderwood0" rel="author">Google Plus</a>)
+
+## Copyright
+
+Copyright [Frugal Mechanic](http://frugalmechanic.com)
+
+## License
+
+[Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt)
