@@ -14,6 +14,24 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 
     publishTo := Some("FrugalMechanic Snapshots" at "s3://maven.frugalmechanic.com/snapshots")
 
+### Valid s3:// URL Formats
+
+The examples above are using the [Static Website Using a Custom Domain](http://docs.aws.amazon.com/AmazonS3/latest/dev/website-hosting-custom-domain-walkthrough.html) functionality of S3.
+
+These would also be equivalent (for the **maven.frugalmechanic.com** bucket):
+
+    s3://s3-us-west-2.amazonaws.com/maven.frugalmechanic.com/snapshots
+    s3://maven.frugalmechanic.com.s3-us-west-2.amazonaws.com/snapshots
+    s3://maven.frugalmechanic.com.s3.amazonaws.com/snapshots
+    s3://s3.amazonaws.com/maven.frugalmechanic.com/snapshots
+
+All of these forms should work:
+
+    s3://[BUCKET]/[OPTIONAL_PATH]
+    s3://s3.amazonaws.com/[BUCKET]/[OPTIONAL_PATH]
+    s3://[BUCKET].s3.amazonaws.com/[OPTIONAL_PATH]
+    s3://s3-[REGION].amazonaws.com/[BUCKET]/[OPTIONAL_PATH]
+    s3://[BUCKET].s3-[REGION].amazonaws.com/[OPTIONAL_PATH]
 
 ## Usage
 
