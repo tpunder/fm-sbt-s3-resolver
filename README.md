@@ -43,6 +43,29 @@ All of these forms should work:
 
 S3 Credentials are checked in the following places and order:
 
+#### Bucket Specific Environment Variables
+
+    AWS_ACCESS_KEY_ID_<BUCKET_NAME> -or- <BUCKET_NAME>_AWS_ACCESS_KEY_ID
+    AWS_SECRET_KEY_<BUCKET_NAME> -or- <BUCKET_NAME>_AWS_SECRET_KEY
+    
+**NOTE** - The following transforms are applied to the bucket name before looking up the environment variable:
+
+1. The name is upper-cased
+2. Dots (.) and dashes (-) are replaced with an underscore (_)
+3. Everything other than A-Z, 0-9, and underscores are removed.
+  
+Example:  The bucket name "maven.frugalmechanic.com" becomes "MAVEN\_FRUGALMECHANIC\_COM"
+
+#### Bucket Specific Java System Properties
+
+    -Daws.accessKeyId.<bucket_name>=XXXXXX -Daws.secretKey.<bucket_name>=XXXXXX
+    -D<bucket_name>.aws.accessKeyId=XXXXXX -D<bucket_name>.aws.secretKey=XXXXXX
+
+#### Bucket Specific Property Files
+
+    ~/.sbt/.<bucket_name>_s3credentials
+    ~/.sbt/.s3credentials_<bucket_name>
+
 #### Environment Variables
 
     AWS_ACCESS_KEY_ID (or AWS_ACCESS_KEY)
@@ -52,9 +75,8 @@ S3 Credentials are checked in the following places and order:
 
     -Daws.accessKeyId=XXXXXX -Daws.secretKey=XXXXXX 
 
-#### Property Files:
+#### Property File
   
-    ~/.sbt/.<bucket_name>_s3credentials
     ~/.sbt/.s3credentials
     
 The property files should have the following format:

@@ -15,6 +15,8 @@
  */
 package fm.sbt
 
+import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_SYSTEM_PROPERTY}
+import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, SECRET_KEY_ENV_VAR}
 import com.amazonaws.auth._
 import com.amazonaws.regions.{Region, RegionUtils}
 import com.amazonaws.services.s3.{AmazonS3Client, AmazonS3URI}
@@ -24,12 +26,50 @@ import org.apache.ivy.util.url.URLHandler
 import java.io.{File, InputStream}
 import java.net.{InetAddress, URL}
 
+object S3URLHandler {
+  private class S3URLInfo(available: Boolean, contentLength: Long, lastModified: Long) extends URLHandler.URLInfo(available, contentLength, lastModified)
+  
+  private class BucketSpecificSystemPropertiesCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
+    
+    def AccessKeyName: String = ACCESS_KEY_SYSTEM_PROPERTY
+    def SecretKeyName: String = SECRET_KEY_SYSTEM_PROPERTY
+
+    protected def getProp(names: String*): String = names.map{ System.getProperty }.flatMap{ Option(_) }.head.trim
+  }
+  
+  private class BucketSpecificEnvironmentVariableCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
+    def AccessKeyName: String = ACCESS_KEY_ENV_VAR
+    def SecretKeyName: String = SECRET_KEY_ENV_VAR
+    
+    protected def getProp(names: String*): String = names.map{ cleanName }.map{ System.getenv }.flatMap{ Option(_) }.head.trim
+    
+    private def cleanName(s: String): String = s.toUpperCase.replace('-','_').replace('.','_').replaceAll("[^A-Z0-9_]", "")
+  }
+  
+  private abstract class BucketSpecificCredentialsProvider(bucket: String) extends AWSCredentialsProvider {
+    def AccessKeyName: String
+    def SecretKeyName: String
+    
+    def getCredentials(): AWSCredentials = {
+      val accessKey: String = getProp(s"${AccessKeyName}.${bucket}", s"${bucket}.${AccessKeyName}")
+      val secretKey: String = getProp(s"${SecretKeyName}.${bucket}", s"${bucket}.${SecretKeyName}")
+      
+      new BasicAWSCredentials(accessKey, secretKey)
+    }
+    
+    def refresh(): Unit = {}
+    
+    // This should throw an exception if the value is missing
+    protected def getProp(names: String*): String
+  }
+}
+
 /**
  * This implements the Ivy URLHandler
  */
 final class S3URLHandler extends URLHandler {
   import URLHandler.{UNAVAILABLE, URLInfo}
-  private class S3URLInfo(available: Boolean, contentLength: Long, lastModified: Long) extends URLHandler.URLInfo(available, contentLength, lastModified)
+  import S3URLHandler._
   
   def isReachable(url: URL): Boolean = getURLInfo(url).isReachable
   def isReachable(url: URL, timeout: Int): Boolean = getURLInfo(url, timeout).isReachable
@@ -49,10 +89,12 @@ final class S3URLHandler extends URLHandler {
   
   private def makeCredentialsProviderChain(bucket: String): AWSCredentialsProviderChain = {
     val providers = Vector(
+      new BucketSpecificEnvironmentVariableCredentialsProvider(bucket),
+      new BucketSpecificSystemPropertiesCredentialsProvider(bucket),
+      makePropertiesFileCredentialsProvider(s".s3credentials_${bucket}"),
+      makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
       new EnvironmentVariableCredentialsProvider(),
       new SystemPropertiesCredentialsProvider(),
-      makePropertiesFileCredentialsProvider(s".s3credentials_"+bucket),
-      makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
       makePropertiesFileCredentialsProvider(".s3credentials"),
       new InstanceProfileCredentialsProvider()
     )
