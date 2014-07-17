@@ -54,12 +54,20 @@ S3 Credentials are checked in the following places and order:
 2. Dots (.) and dashes (-) are replaced with an underscore (_)
 3. Everything other than A-Z, 0-9, and underscores are removed.
   
-Example:  The bucket name "maven.frugalmechanic.com" becomes "MAVEN\_FRUGALMECHANIC\_COM"
+Example:
+
+The bucket name "maven.frugalmechanic.com" becomes "MAVEN\_FRUGALMECHANIC\_COM":
+
+    AWS_ACCESS_KEY_ID_MAVEN_FRUGALMECHANIC_COM="XXXXXX" AWS_SECRET_KEY_MAVEN_FRUGALMECHANIC_COM="XXXXXX" sbt
 
 #### Bucket Specific Java System Properties
 
     -Daws.accessKeyId.<bucket_name>=XXXXXX -Daws.secretKey.<bucket_name>=XXXXXX
     -D<bucket_name>.aws.accessKeyId=XXXXXX -D<bucket_name>.aws.secretKey=XXXXXX
+    
+Example:
+
+    SBT_OPTS="-Daws.accessKeyId.maven.frugalmechanic.com=XXXXXX -Daws.secretKey.maven.frugalmechanic.com=XXXXXX" sbt
 
 #### Bucket Specific Property Files
 
@@ -71,9 +79,17 @@ Example:  The bucket name "maven.frugalmechanic.com" becomes "MAVEN\_FRUGALMECHA
     AWS_ACCESS_KEY_ID (or AWS_ACCESS_KEY)
     AWS_SECRET_KEY (or AWS_SECRET_ACCESS_KEY)
 
+Example:
+
+    AWS_ACCESS_KEY_ID="XXXXXX" AWS_SECRET_KEY="XXXXXX" sbt
+    
 #### Java System Properties
 
     -Daws.accessKeyId=XXXXXX -Daws.secretKey=XXXXXX 
+
+Example:
+
+    SBT_OPTS="-Daws.accessKeyId=XXXXXX -Daws.secretKey=XXXXXX" sbt
 
 #### Property File
   
