@@ -8,6 +8,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 
   * [Example](#example)
   * [Usage](#usage)
+  * [IAM Policy Examples](#iam)
   * [Authors](#authors)
   * [Copyright](#copyright)
   * [License](#license)
@@ -107,6 +108,90 @@ The property files should have the following format:
   
     accessKey = XXXXXXXXXX
     secretKey = XXXXXXXXXX
+
+## <a name="iam"></a>IAM Policy Examples
+
+I recommend that you create IAM Credentials for reading/writing your Maven S3 Bucket.  Here are some examples for our **maven.frugalmechanic.com** bucket:
+
+### Read/Write Policy (for publishing)
+
+<pre>
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:DeleteObject","s3:GetObject","s3:PutObject"],
+      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/*"]
+    }
+  ]
+}
+</pre>
+
+### Read-Only Policy
+
+<pre>
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/*"]
+    }
+  ]
+}
+</pre>
+
+### Releases Read-Only, Snapshots Read/Write
+
+<pre>
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetBucketLocation"],
+      "Resource": "arn:aws:s3:::*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/<b>releases</b>/*"]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:DeleteObject","s3:GetObject","s3:PutObject"],
+      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/<b>snapshots</b>/*"]
+    }
+  ]
+}
+</pre>
 
 ## <a name="authors"></a>Authors
 
