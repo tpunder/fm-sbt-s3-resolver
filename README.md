@@ -4,7 +4,15 @@
 
 This SBT plugin adds support for using Amazon S3 for resolving and publishing using s3:// urls.
 
-## Example
+## Table of Contents
+
+  * [Example](#example)
+  * [Usage](#usage)
+  * [Authors](#authors)
+  * [Copyright](#copyright)
+  * [License](#license)
+
+## <a name="example"></a>Example
 
 ### Resolving Dependencies via S3
 
@@ -33,11 +41,11 @@ All of these forms should work:
     s3://s3-[REGION].amazonaws.com/[BUCKET]/[OPTIONAL_PATH]
     s3://[BUCKET].s3-[REGION].amazonaws.com/[OPTIONAL_PATH]
 
-## Usage
+## <a name="usage"></a>Usage
 
 ### Add this to your project/plugins.sbt file:
 
-    addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.3.0")
+    addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.4.0")
 
 ### S3 Credentials
 
@@ -100,14 +108,14 @@ The property files should have the following format:
     accessKey = XXXXXXXXXX
     secretKey = XXXXXXXXXX
 
-## Authors
+## <a name="authors"></a>Authors
 
 Tim Underwood (<a href="https://github.com/tpunder" rel="author">GitHub</a>, <a href="https://www.linkedin.com/in/tpunder" rel="author">LinkedIn</a>, <a href="https://twitter.com/tpunder" rel="author">Twitter</a>, <a href="https://plus.google.com/+TimUnderwood0" rel="author">Google Plus</a>)
 
-## Copyright
+## <a name="copyright"></a>Copyright
 
 Copyright [Frugal Mechanic](http://frugalmechanic.com)
 
-## License
+## <a name="license"></a>License
 
 [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.txt)
