@@ -18,15 +18,20 @@ package fm.sbt
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, SECRET_KEY_ENV_VAR}
 import com.amazonaws.auth._
-import com.amazonaws.regions.{Region, RegionUtils}
+import com.amazonaws.regions.{Region, Regions, RegionUtils}
 import com.amazonaws.services.s3.{AmazonS3Client, AmazonS3URI}
 import com.amazonaws.services.s3.model.{AmazonS3Exception, GetObjectRequest, ObjectMetadata, PutObjectResult, S3Object}
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message, FileUtil}
 import org.apache.ivy.util.url.URLHandler
 import java.io.{File, InputStream}
-import java.net.{InetAddress, URL}
+import java.net.{InetAddress, URI, URL}
+import scala.util.matching.Regex
+import scala.util.Try
 
 object S3URLHandler {
+  // This is for matching region names in URLs or host names
+  private val RegionMatcher: Regex = Regions.values().map{ _.getName }.sortBy{ -1 * _.length }.mkString("|").r
+  
   private class S3URLInfo(available: Boolean, contentLength: Long, lastModified: Long) extends URLHandler.URLInfo(available, contentLength, lastModified)
   
   private class BucketSpecificSystemPropertiesCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
@@ -102,7 +107,7 @@ final class S3URLHandler extends URLHandler {
     new AWSCredentialsProviderChain(providers: _*)
   }
   
-  private def getCredentials(bucket: String): AWSCredentials = try {
+  def getCredentials(bucket: String): AWSCredentials = try {
     makeCredentialsProviderChain(bucket).getCredentials()
   } catch {
     case ex: com.amazonaws.AmazonClientException => 
@@ -110,11 +115,11 @@ final class S3URLHandler extends URLHandler {
       throw ex
   }
   
-  private def getClientBucketAndKey(url: URL): (AmazonS3Client, String, String) = {
+  def getClientBucketAndKey(url: URL): (AmazonS3Client, String, String) = {
     val (bucket, key) = getBucketAndKey(url)
     val client: AmazonS3Client = new AmazonS3Client(getCredentials(bucket))
     
-    val region: Option[Region] = getRegion(url, bucket)
+    val region: Option[Region] = getRegion(url, bucket, client)
     region.foreach{ client.setRegion }
     
     (client, bucket, key)
@@ -174,20 +179,36 @@ final class S3URLHandler extends URLHandler {
   def setRequestMethod(requestMethod: Int): Unit = {}
   
   // Try to get the region of the S3 URL so we can set it on the S3Client
-  private def getRegion(url: URL, bucket: String): Option[Region] = {
-    // First check if we can get the region directly from the url
-    val region: Option[String] = getAmazonS3URI(url).map{ _.getRegion } orElse {
-      // Otherwise try a forward then reverse dns lookup
-      getAmazonS3URI(InetAddress.getByName(bucket+".s3.amazonaws.com").getCanonicalHostName()).map{ _.getRegion }
-    }
-    
-    region.map{ RegionUtils.getRegion }
+  def getRegion(url: URL, bucket: String, client: AmazonS3Client): Option[Region] = {
+    val region: Option[String] = getRegionNameFromURL(url) orElse getRegionNameFromDNS(bucket) orElse getRegionNameFromService(bucket, client)
+
+    region.map{ RegionUtils.getRegion }.flatMap{ Option(_) }
   }
   
-  private def getBucketAndKey(url: URL): (String, String) = {
+  def getRegionNameFromURL(url: URL): Option[String] = {
+    // We'll try the AmazonS3URI parsing first then fallback to our RegionMatcher
+    getAmazonS3URI(url).map{ _.getRegion }.flatMap{ Option(_) } orElse RegionMatcher.findFirstIn(url.toString)
+  }
+  
+  def getRegionNameFromDNS(bucket: String): Option[String] = {
+    // This gives us something like s3-us-west-2-w.amazonaws.com which must have changed
+    // at some point because the region from that hostname is no longer parsed by AmazonS3URI
+    val canonicalHostName: String = InetAddress.getByName(bucket+".s3.amazonaws.com").getCanonicalHostName()
+    
+    // So we use our regex based RegionMatcher to try and extract the region since AmazonS3URI doesn't work
+    RegionMatcher.findFirstIn(canonicalHostName)
+  }
+  
+  // TODO: cache the result of this so we aren't always making the call
+  def getRegionNameFromService(bucket: String, client: AmazonS3Client): Option[String] = {
+    // This might fail if the current credentials don't have access to the getBucketLocation call
+    Try { client.getBucketLocation(bucket) }.toOption
+  }
+  
+  def getBucketAndKey(url: URL): (String, String) = {
     // The AmazonS3URI constructor should work for standard S3 urls.  But if a custom domain is being used
     // (e.g. snapshots.maven.frugalmechanic.com) then we treat the hostname as the bucket and the path as the key
-    getAmazonS3URI(url).map{ amzn =>
+    getAmazonS3URI(url).map{ amzn: AmazonS3URI =>
       (amzn.getBucket, amzn.getKey)
     }.getOrElse {
       // Probably a custom domain name - The host should be the bucket and the path the key
@@ -195,6 +216,19 @@ final class S3URLHandler extends URLHandler {
     }
   }
   
-  private def getAmazonS3URI(uri: String): Option[AmazonS3URI] = try { Some(new AmazonS3URI(uri))       } catch { case _: IllegalArgumentException => None }
-  private def getAmazonS3URI(url: URL)   : Option[AmazonS3URI] = try { Some(new AmazonS3URI(url.toURI)) } catch { case _: IllegalArgumentException => None }
+  def getAmazonS3URI(uri: String): Option[AmazonS3URI] = getAmazonS3URI(URI.create(uri))
+  def getAmazonS3URI(url: URL)   : Option[AmazonS3URI] = getAmazonS3URI(url.toURI)
+  
+  def getAmazonS3URI(uri: URI)   : Option[AmazonS3URI] = try {
+    val httpsURI: URI =
+      // If there is no scheme (e.g. new URI("s3-us-west-2.amazonaws.com/<bucket>"))
+      // then we need to re-create the URI to add one and to also make sure the host is set
+      if (uri.getScheme == null) new URI("https://"+uri)
+      // AmazonS3URI can't parse the region from s3:// URLs so we rewrite the scheme to https://
+      else new URI("https", uri.getUserInfo, uri.getHost, uri.getPort, uri.getPath, uri.getQuery, uri.getFragment)
+
+    Some(new AmazonS3URI(httpsURI))
+  } catch {
+    case _: IllegalArgumentException => None
+  }
 }
