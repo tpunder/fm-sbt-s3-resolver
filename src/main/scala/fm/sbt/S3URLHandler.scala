@@ -20,11 +20,12 @@ import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, SECRET_KEY_ENV_
 import com.amazonaws.auth._
 import com.amazonaws.regions.{Region, Regions, RegionUtils}
 import com.amazonaws.services.s3.{AmazonS3Client, AmazonS3URI}
-import com.amazonaws.services.s3.model.{AmazonS3Exception, GetObjectRequest, ObjectMetadata, PutObjectResult, S3Object}
+import com.amazonaws.services.s3.model.{AmazonS3Exception, GetObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata, PutObjectResult, S3Object}
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message, FileUtil}
 import org.apache.ivy.util.url.URLHandler
 import java.io.{File, InputStream}
 import java.net.{InetAddress, URI, URL}
+import scala.collection.JavaConverters._
 import scala.util.matching.Regex
 import scala.util.Try
 
@@ -84,7 +85,7 @@ final class S3URLHandler extends URLHandler {
   def getLastModified(url: URL, timeout: Int): Long = getURLInfo(url, timeout).getLastModified
   def getURLInfo(url: URL): URLInfo = getURLInfo(url, 0)
   
-  private def debug(msg: String): Unit = Message.debug("S3URLHandler."+msg)
+  private def debug(msg: String): Unit = Message.info("S3URLHandler."+msg)
   
   private def makePropertiesFileCredentialsProvider(fileName: String): PropertiesFileCredentialsProvider = {
     val dir: File = new File(System.getProperty("user.home"), ".sbt")
@@ -149,6 +150,34 @@ final class S3URLHandler extends URLHandler {
     obj.getObjectContent()
   }
   
+  /**
+   * A directory listing for keys/directories under this prefix
+   */
+  def list(url: URL): Seq[URL] = {
+    debug(s"list($url)")
+    
+    val (client, bucket, key /* key is the prefix in this case */) = getClientBucketAndKey(url)
+    
+    // We want the prefix to have a trailing slash
+    val prefix: String = key.stripSuffix("/") + "/"
+    
+    val request: ListObjectsRequest = new ListObjectsRequest().withBucketName(bucket).withPrefix(prefix).withDelimiter("/")
+    
+    val listing: ObjectListing = client.listObjects(request)
+    
+    require(!listing.isTruncated, "Truncated ObjectListing!  Making additional calls currently isn't implemented!")
+    
+    val keys: Seq[String] = listing.getCommonPrefixes.asScala ++ listing.getObjectSummaries.asScala.map{ _.getKey }
+    
+    val res: Seq[URL] = keys.map{ k: String =>
+      new URL(url.toString.stripSuffix("/") + "/" + k.stripPrefix(prefix))
+    }
+    
+    debug(s"list($url) => \n  "+res.mkString("\n  "))
+    
+    res
+  }
+  
   def download(src: URL, dest: File, l: CopyProgressListener): Unit = {
     debug(s"download($src, $dest)")
     
@@ -176,7 +205,7 @@ final class S3URLHandler extends URLHandler {
   }
   
   // I don't think we care what this is set to
-  def setRequestMethod(requestMethod: Int): Unit = {}
+  def setRequestMethod(requestMethod: Int): Unit = debug(s"setRequestMethod($requestMethod)")
   
   // Try to get the region of the S3 URL so we can set it on the S3Client
   def getRegion(url: URL, bucket: String, client: AmazonS3Client): Option[Region] = {

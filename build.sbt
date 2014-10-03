@@ -2,7 +2,7 @@ name := "fm-sbt-s3-resolver"
 
 organization := "com.frugalmechanic"
 
-version := "0.4.0"
+version := "0.5.0-SNAPSHOT"
 
 description := "SBT S3 Resolver Plugin"
 
@@ -13,7 +13,7 @@ homepage := Some(url("https://github.com/frugalmechanic/sbt-s3-resolver"))
 sbtPlugin := true
 
 libraryDependencies ++= Seq(
-  "com.amazonaws" % "aws-java-sdk" % "1.8.9.1",
+  "com.amazonaws" % "aws-java-sdk" % "1.8.11",
   "org.apache.ivy" % "ivy" % "2.3.0"
 )
 
