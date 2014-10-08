@@ -13,7 +13,7 @@ homepage := Some(url("https://github.com/frugalmechanic/sbt-s3-resolver"))
 sbtPlugin := true
 
 libraryDependencies ++= Seq(
-  "com.amazonaws" % "aws-java-sdk" % "1.8.11",
+  "com.amazonaws" % "aws-java-sdk-s3" % "1.9.0",
   "org.apache.ivy" % "ivy" % "2.3.0"
 )
 
