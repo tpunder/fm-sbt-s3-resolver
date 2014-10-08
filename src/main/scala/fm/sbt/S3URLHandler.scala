@@ -85,7 +85,7 @@ final class S3URLHandler extends URLHandler {
   def getLastModified(url: URL, timeout: Int): Long = getURLInfo(url, timeout).getLastModified
   def getURLInfo(url: URL): URLInfo = getURLInfo(url, 0)
   
-  private def debug(msg: String): Unit = Message.info("S3URLHandler."+msg)
+  private def debug(msg: String): Unit = Message.debug("S3URLHandler."+msg)
   
   private def makePropertiesFileCredentialsProvider(fileName: String): PropertiesFileCredentialsProvider = {
     val dir: File = new File(System.getProperty("user.home"), ".sbt")
