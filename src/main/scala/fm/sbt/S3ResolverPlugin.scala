@@ -25,7 +25,9 @@ import org.apache.ivy.util.url.{URLHandlerDispatcher, URLHandlerRegistry}
 /**
  * All this does is register the s3:// url handler with the JVM and IVY
  */
-object S3ResolverPlugin extends Plugin {
+object S3ResolverPlugin extends AutoPlugin {
+  object autoImport extends S3Implicits
+  
   //
   // This *should* work but it looks like SBT is doing some multi class loader stuff
   // because the class loader used to load java.net.URL doesn't see fm.sbt.s3.Handler.

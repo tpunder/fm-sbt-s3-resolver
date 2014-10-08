@@ -16,16 +16,13 @@
 package fm.sbt
 
 import java.util.{Collections, List}
-import org.apache.ivy.core.module.descriptor.DependencyDescriptor
 import sbt.{RawRepository, Resolver}
 
-object S3 {
-  implicit class S3Repo(val name: String) extends AnyVal {
-    def atS3(location: String): Resolver = {
-      require(null != location && location != "", "Empty Location!")
-      val pattern: List[String] = Collections.singletonList(resolvePattern(location, Resolver.mavenStyleBasePattern))
-      new RawRepository(new S3URLResolver(name, location, pattern))
-    }
+final class S3RawRepository(val name: String) extends AnyVal {
+  def atS3(location: String): Resolver = {
+    require(null != location && location != "", "Empty Location!")
+    val pattern: List[String] = Collections.singletonList(resolvePattern(location, Resolver.mavenStyleBasePattern))
+    new RawRepository(new S3URLResolver(name, location, pattern))
   }
   
   private def resolvePattern(base: String, pattern: String): String = {
