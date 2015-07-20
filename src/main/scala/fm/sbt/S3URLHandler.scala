@@ -15,6 +15,7 @@
  */
 package fm.sbt
 
+import com.amazonaws.ClientConfiguration
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, SECRET_KEY_ENV_VAR}
 import com.amazonaws.auth._
@@ -115,10 +116,22 @@ final class S3URLHandler extends URLHandler {
       Message.error("Unable to find AWS Credentials.")
       throw ex
   }
+
+  def getProxyConfiguration: ClientConfiguration = {
+    val configuration = new ClientConfiguration()
+    for {
+      proxyHost <- Option( System.getProperty("http.proxyHost") )
+      proxyPort <- Option( System.getProperty("http.proxyPort").toInt )
+    } {
+      configuration.setProxyHost(proxyHost)
+      configuration.setProxyPort(proxyPort)
+    }
+    configuration
+  }
   
   def getClientBucketAndKey(url: URL): (AmazonS3Client, String, String) = {
     val (bucket, key) = getBucketAndKey(url)
-    val client: AmazonS3Client = new AmazonS3Client(getCredentials(bucket))
+    val client: AmazonS3Client = new AmazonS3Client(getCredentials(bucket), getProxyConfiguration)
     
     val region: Option[Region] = getRegion(url, bucket, client)
     region.foreach{ client.setRegion }
