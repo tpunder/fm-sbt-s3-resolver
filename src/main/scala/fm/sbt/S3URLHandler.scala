@@ -120,8 +120,8 @@ final class S3URLHandler extends URLHandler {
   def getProxyConfiguration: ClientConfiguration = {
     val configuration = new ClientConfiguration()
     for {
-      proxyHost <- Option( System.getProperty("http.proxyHost") )
-      proxyPort <- Option( System.getProperty("http.proxyPort").toInt )
+      proxyHost <- Option( System.getProperty("https.proxyHost") )
+      proxyPort <- Option( System.getProperty("https.proxyPort").toInt )
     } {
       configuration.setProxyHost(proxyHost)
       configuration.setProxyPort(proxyPort)
