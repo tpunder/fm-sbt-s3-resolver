@@ -26,6 +26,7 @@ import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message, Fi
 import org.apache.ivy.util.url.URLHandler
 import java.io.{File, InputStream}
 import java.net.{InetAddress, URI, URL}
+import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
 import scala.util.Try
@@ -109,12 +110,26 @@ final class S3URLHandler extends URLHandler {
     new AWSCredentialsProviderChain(providers: _*)
   }
   
-  def getCredentials(bucket: String): AWSCredentials = try {
-    makeCredentialsProviderChain(bucket).getCredentials()
-  } catch {
-    case ex: com.amazonaws.AmazonClientException => 
-      Message.error("Unable to find AWS Credentials.")
-      throw ex
+  private val credentialsCache: ConcurrentHashMap[String,AWSCredentials] = new ConcurrentHashMap()
+  
+  def getCredentials(bucket: String): AWSCredentials = {
+    var credentials: AWSCredentials = credentialsCache.get(bucket)
+    
+    if (null == credentials) {
+      credentials = try {
+        makeCredentialsProviderChain(bucket).getCredentials()
+      } catch {
+        case ex: com.amazonaws.AmazonClientException => 
+          Message.error("Unable to find AWS Credentials.")
+          throw ex
+      }
+      
+      Message.info("S3URLHandler - Using AWS Access Key Id: "+credentials.getAWSAccessKeyId+" for bucket: "+bucket)
+      
+      credentialsCache.put(bucket, credentials)
+    }
+    
+    credentials
   }
 
   def getProxyConfiguration: ClientConfiguration = {
