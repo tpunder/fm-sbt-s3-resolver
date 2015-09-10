@@ -51,7 +51,7 @@ object S3ResolverPlugin extends AutoPlugin {
   }
   
   // We need s3:// URLs to work without throwing a java.net.MalformedURLException
-  // which means installeing a dummy URLStreamHandler.  We only install the handler
+  // which means installing a dummy URLStreamHandler.  We only install the handler
   // if it's not already installed (since a second call to URL.setURLStreamHandlerFactory
   // will fail).
   try {
