@@ -2,7 +2,7 @@ name := "fm-sbt-s3-resolver"
 
 organization := "com.frugalmechanic"
 
-version := "0.7.0-SNAPSHOT"
+version := "0.8.0-SNAPSHOT"
 
 description := "SBT S3 Resolver Plugin"
 
@@ -14,6 +14,7 @@ sbtPlugin := true
 
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % "1.10.16",
+  "com.amazonaws" % "aws-java-sdk-sts" % "1.10.16",
   "org.apache.ivy" % "ivy" % "2.3.0"
 )
 
