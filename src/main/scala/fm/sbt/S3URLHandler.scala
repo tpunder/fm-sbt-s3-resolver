@@ -15,8 +15,9 @@
  */
 package fm.sbt
 
-import java.io.{File, InputStream}
+import java.io.{File, FileInputStream, InputStream}
 import java.net.{InetAddress, URI, URL}
+import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
 
 import com.amazonaws.ClientConfiguration
@@ -26,7 +27,7 @@ import com.amazonaws.regions.{Region, RegionUtils, Regions}
 import com.amazonaws.services.s3.model.{AmazonS3Exception, GetObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata, PutObjectResult, S3Object}
 import com.amazonaws.services.s3.{AmazonS3Client, AmazonS3URI}
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient
-import com.amazonaws.services.securitytoken.model.AssumeRoleRequest
+import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
 
@@ -35,6 +36,8 @@ import scala.util.Try
 import scala.util.matching.Regex
 
 object S3URLHandler {
+  private val DOT_SBT_DIR: File = new File(System.getProperty("user.home"), ".sbt")
+  
   // This is for matching region names in URLs or host names
   private val RegionMatcher: Regex = Regions.values().map{ _.getName }.sortBy{ -1 * _.length }.mkString("|").r
   
@@ -52,9 +55,7 @@ object S3URLHandler {
     def AccessKeyName: String = ACCESS_KEY_ENV_VAR
     def SecretKeyName: String = SECRET_KEY_ENV_VAR
     
-    protected def getProp(names: String*): String = names.map{ cleanName }.map{ System.getenv }.flatMap{ Option(_) }.head.trim
-    
-    private def cleanName(s: String): String = s.toUpperCase.replace('-','_').replace('.','_').replaceAll("[^A-Z0-9_]", "")
+    protected def getProp(names: String*): String = names.map{ toEnvironmentVariableName }.map{ System.getenv }.flatMap{ Option(_) }.head.trim
   }
   
   private abstract class BucketSpecificCredentialsProvider(bucket: String) extends AWSCredentialsProvider {
@@ -77,17 +78,17 @@ object S3URLHandler {
   private abstract class RoleBasedCredentialsProvider(providerChain: AWSCredentialsProviderChain) extends AWSCredentialsProvider {
     def RoleArnKeyNames: Seq[String]
 
-    // This shoudl throw an exception if the value is missing
+    // This should throw an exception if the value is missing
     protected def getRoleArn(keys: String*): String
 
     def getCredentials(): AWSCredentials = {
-      val securityTokenService = new AWSSecurityTokenServiceClient(providerChain)
+      val securityTokenService: AWSSecurityTokenServiceClient = new AWSSecurityTokenServiceClient(providerChain)
 
-      val roleRequest = new AssumeRoleRequest()
+      val roleRequest: AssumeRoleRequest = new AssumeRoleRequest()
         .withRoleArn(getRoleArn(RoleArnKeyNames: _*))
         .withRoleSessionName(System.currentTimeMillis.toString)
 
-      val result = securityTokenService.assumeRole(roleRequest)
+      val result: AssumeRoleResult = securityTokenService.assumeRole(roleRequest)
 
       new BasicAWSCredentials(result.getCredentials.getAccessKeyId, result.getCredentials.getSecretAccessKey)
     }
@@ -105,14 +106,12 @@ object S3URLHandler {
   }
 
   private class RoleBasedEnvironmentVariableCredentialsProvider(providerChain: AWSCredentialsProviderChain)
-        extends RoleBasedCredentialsProvider(providerChain) {
+      extends RoleBasedCredentialsProvider(providerChain) {
 
     val RoleArnKeyName: String = "AWS_ROLE_ARN"
     val RoleArnKeyNames: Seq[String] = Seq("AWS_ROLE_ARN")
 
-    protected def getRoleArn(keys: String*) = keys.map( cleanName ).map( System.getenv ).flatMap( Option(_) ).head.trim
-
-    private def cleanName(s: String): String = s.toUpperCase.replace('-','_').replace('.','_').replaceAll("[^A-Z0-9_]", "")
+    protected def getRoleArn(keys: String*) = keys.map( toEnvironmentVariableName ).map( System.getenv ).flatMap( Option(_) ).head.trim
   }
 
   private class RoleBasedPropertiesFileCredentialsProvider(providerChain: AWSCredentialsProviderChain, fileName: String)
@@ -121,20 +120,18 @@ object S3URLHandler {
     val RoleArnKeyName: String = "roleArn"
     val RoleArnKeyNames: Seq[String] = Seq(RoleArnKeyName)
 
-    protected def getRoleArn(keys: String*) = {
-      val dir: File = new File(System.getProperty("user.home"), ".sbt")
-      val source = scala.io.Source.fromFile(fileName)
-
-      val roleArn = try {
-        source.getLines
-          .filter(line => RoleArnKeyNames.exists(line.contains(_)))
-          .map(_.split("\\s*=\\s*")(1))
-          .toSeq
-          .head
-          .trim
-      } finally source.close()
-
-      roleArn
+    protected def getRoleArn(keys: String*): String = {
+      val file: File = new File(DOT_SBT_DIR, fileName)
+      
+      // This will throw if the file doesn't exist
+      val is: InputStream = new FileInputStream(file)
+      
+      try {
+        val props: Properties = new Properties()
+        props.load(is)
+        // This will throw if there is no matching properties
+        RoleArnKeyNames.map{ props.getProperty }.flatMap{ Option(_) }.head.trim
+      } finally is.close()
     }
   }
 
@@ -149,6 +146,8 @@ object S3URLHandler {
 
     override val RoleArnKeyNames: Seq[String] = Seq(s"${RoleArnKeyName}.${bucket}", s"${bucket}.${RoleArnKeyName}")
   }
+  
+  private def toEnvironmentVariableName(s: String): String = s.toUpperCase.replace('-','_').replace('.','_').replaceAll("[^A-Z0-9_]", "")
 }
 
 /**
@@ -169,13 +168,12 @@ final class S3URLHandler extends URLHandler {
   private def debug(msg: String): Unit = Message.debug("S3URLHandler."+msg)
   
   private def makePropertiesFileCredentialsProvider(fileName: String): PropertiesFileCredentialsProvider = {
-    val dir: File = new File(System.getProperty("user.home"), ".sbt")
-    val file: File = new File(dir, fileName)
+    val file: File = new File(DOT_SBT_DIR, fileName)
     new PropertiesFileCredentialsProvider(file.toString)
   }
   
   private def makeCredentialsProviderChain(bucket: String): AWSCredentialsProviderChain = {
-    val basicProviders = Vector(
+    val basicProviders: Vector[AWSCredentialsProvider] = Vector(
       new BucketSpecificEnvironmentVariableCredentialsProvider(bucket),
       new BucketSpecificSystemPropertiesCredentialsProvider(bucket),
       makePropertiesFileCredentialsProvider(s".s3credentials_${bucket}"),
@@ -186,9 +184,9 @@ final class S3URLHandler extends URLHandler {
       new InstanceProfileCredentialsProvider()
     )
 
-    val basicProviderChain = new AWSCredentialsProviderChain(basicProviders: _*)
+    val basicProviderChain: AWSCredentialsProviderChain = new AWSCredentialsProviderChain(basicProviders: _*)
 
-    val roleBasedProviders = Vector(
+    val roleBasedProviders: Vector[AWSCredentialsProvider] = Vector(
       new BucketSpecificRoleBasedEnvironmentVariableCredentialsProvider(basicProviderChain, bucket),
       new BucketSpecificRoleBasedSystemPropertiesCredentialsProvider(basicProviderChain, bucket),
       new RoleBasedPropertiesFileCredentialsProvider(basicProviderChain, s".s3credentials_${bucket}"),
