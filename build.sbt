@@ -19,6 +19,7 @@ EclipseKeys.eclipseOutput := Some(".target")
 
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % "1.10.16",
+  "com.amazonaws" % "aws-java-sdk-sts" % "1.10.16",
   "org.apache.ivy" % "ivy" % "2.3.0"
 )
 
