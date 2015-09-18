@@ -12,6 +12,11 @@ homepage := Some(url("https://github.com/frugalmechanic/sbt-s3-resolver"))
 
 sbtPlugin := true
 
+EclipseKeys.withSource := true
+
+// Don't use the default "target" directory (which is what SBT uses)
+EclipseKeys.eclipseOutput := Some(".target")
+
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % "1.10.16",
   "org.apache.ivy" % "ivy" % "2.3.0"
