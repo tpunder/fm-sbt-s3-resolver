@@ -18,9 +18,11 @@ package fm.sbt
 import sbt._
 import Keys._
 
+import java.io.{ByteArrayOutputStream, InputStream}
 import java.net.{URL, URLStreamHandler, URLStreamHandlerFactory}
 import org.apache.ivy.util.Message
 import org.apache.ivy.util.url.{URLHandlerDispatcher, URLHandlerRegistry}
+import scala.annotation.tailrec
 
 /**
  * All this does is register the s3:// url handler with the JVM and IVY
@@ -84,6 +86,70 @@ object S3ResolverPlugin extends AutoPlugin {
   // Register (or replace) the s3 handler
   dispatcher.setDownloader("s3", new S3URLHandler)
   
+  
+  //
+  // More hackery to make directory listings work for s3:// URLs
+  //
+// {
+//     import java.lang.reflect.Method
+//     
+//     // The class laoder that loaded this plugin
+//     val fmClassLoader: ClassLoader = getClass.getClassLoader
+//     
+//     // The class loader that loaded (or will load) the Ivy Classes
+//     //val ivyClassLoader: ClassLoader = classOf[org.apache.ivy.core.settings.XmlSettingsParser].getClassLoader
+//     val ivyClassLoader: ClassLoader = fmClassLoader // classOf[org.apache.ivy.plugins.repository.url.URLRepository].getClassLoader
+//     
+//     // Private ClassLoader methods that we need for this to work
+//     val findLoadedClass: Method = classOf[ClassLoader].getDeclaredMethod("findLoadedClass", classOf[String])
+//     val getResourceAsStream: Method = classOf[ClassLoader].getDeclaredMethod("getResourceAsStream", classOf[String])
+//     val defineClass: Method = classOf[ClassLoader].getDeclaredMethod("defineClass", classOf[String], classOf[Array[Byte]], Integer.TYPE, Integer.TYPE)
+//     
+//     // We need access to all of these methods
+//     findLoadedClass.setAccessible(true)
+//     getResourceAsStream.setAccessible(true)
+//     defineClass.setAccessible(true)
+//     
+//     val s3URLRepositoryClass: String = "fm.ivy.S3URLRepository"
+//     val urlResolverClass: String = "org.apache.ivy.plugins.resolver.URLResolver"
+//     
+//     val isPatched: Boolean = null != findLoadedClass.invoke(ivyClassLoader, s3URLRepositoryClass)
+//     
+//     if (isPatched) {
+//       info(s"$urlResolverClass has already been patched")
+//     } else {
+//       require(null == findLoadedClass.invoke(ivyClassLoader, urlResolverClass), s"$urlResolverClass was already loaded, can't overwrite it!!!")
+//       
+//       // We need to inject our version of the URLResolver/S3URLRepository into the ivy class loader
+//       // but we need to read them from the plugin class loader so we can see them
+//       val s3ClassBytes: Array[Byte] = toBytes(getResourceAsStream.invoke(fmClassLoader, s"${s3URLRepositoryClass.replace('.','/')}.class").asInstanceOf[InputStream])
+//       val resolverClassBytes: Array[Byte] = toBytes(getResourceAsStream.invoke(fmClassLoader, s"${urlResolverClass.replace('.','/')}.class").asInstanceOf[InputStream])
+//       
+//       defineClass.invoke(ivyClassLoader, s3URLRepositoryClass, s3ClassBytes, (0: Integer), (s3ClassBytes.length: Integer))
+//       defineClass.invoke(ivyClassLoader, urlResolverClass, resolverClassBytes, (0: Integer), (resolverClassBytes.length: Integer))
+//       
+//       info(s"Patched $urlResolverClass to work with s3:// URLs")
+//     }
+//   }
+  
   // Not sure how to log using SBT so I'm using Ivy's Message class
   private def info(msg: String): Unit = Message.info(msg)
+  
+  // private def toBytes(is: InputStream): Array[Byte] = {
+  //   require(null != is, "null InputStream!")
+  //   
+  //   val result = new ByteArrayOutputStream
+  //   val buf = new Array[Byte](1024)
+  //   readInputStream(is, buf, result)
+  //   is.close()
+  //   result.toByteArray
+  // }
+  // 
+  // @tailrec
+  // private def readInputStream(is: InputStream, buf: Array[Byte], result: ByteArrayOutputStream): Unit = {
+  //   val num: Int = is.read(buf)
+  //   if (num == -1) return
+  //   result.write(buf, 0, num)
+  //   readInputStream(is, buf, result)
+  // }
 }
