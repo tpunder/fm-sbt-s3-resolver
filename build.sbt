@@ -17,9 +17,12 @@ EclipseKeys.withSource := true
 // Don't use the default "target" directory (which is what SBT uses)
 EclipseKeys.eclipseOutput := Some(".target")
 
+val amazonSDKVersion = "1.10.35"
+
 libraryDependencies ++= Seq(
-  "com.amazonaws" % "aws-java-sdk-s3" % "1.10.16",
-  "com.amazonaws" % "aws-java-sdk-sts" % "1.10.16",
+  "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
+  "com.amazonaws" % "aws-java-sdk-sts" % amazonSDKVersion,
+  "joda-time" % "joda-time" % "2.9.1" force(), //This is to fix https://github.com/aws/aws-sdk-java/issues/484
   "org.apache.ivy" % "ivy" % "2.3.0"
 )
 
