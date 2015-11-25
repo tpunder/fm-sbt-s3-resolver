@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
+import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.regions.{Region, RegionUtils, Regions}
 import com.amazonaws.services.s3.model.{AmazonS3Exception, GetObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata, PutObjectResult, S3Object}
 import com.amazonaws.services.s3.{AmazonS3Client, AmazonS3URI}
@@ -178,6 +179,7 @@ final class S3URLHandler extends URLHandler {
       new BucketSpecificSystemPropertiesCredentialsProvider(bucket),
       makePropertiesFileCredentialsProvider(s".s3credentials_${bucket}"),
       makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
+      new ProfileCredentialsProvider(),
       new EnvironmentVariableCredentialsProvider(),
       new SystemPropertiesCredentialsProvider(),
       makePropertiesFileCredentialsProvider(".s3credentials"),
