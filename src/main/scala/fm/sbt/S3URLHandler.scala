@@ -179,9 +179,9 @@ final class S3URLHandler extends URLHandler {
       new BucketSpecificSystemPropertiesCredentialsProvider(bucket),
       makePropertiesFileCredentialsProvider(s".s3credentials_${bucket}"),
       makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
-      new ProfileCredentialsProvider(),
       new EnvironmentVariableCredentialsProvider(),
       new SystemPropertiesCredentialsProvider(),
+      new ProfileCredentialsProvider(),
       makePropertiesFileCredentialsProvider(".s3credentials"),
       new InstanceProfileCredentialsProvider()
     )
