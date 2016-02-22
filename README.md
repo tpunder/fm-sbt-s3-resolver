@@ -46,7 +46,7 @@ All of these forms should work:
 
 ### Add this to your project/plugins.sbt file:
 
-    addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.7.0")
+    addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.8.0")
 
 ### S3 Credentials
 
