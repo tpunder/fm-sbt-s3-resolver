@@ -91,7 +91,7 @@ object S3URLHandler {
 
       val result: AssumeRoleResult = securityTokenService.assumeRole(roleRequest)
 
-      new BasicAWSCredentials(result.getCredentials.getAccessKeyId, result.getCredentials.getSecretAccessKey)
+      new BasicSessionCredentials(result.getCredentials.getAccessKeyId, result.getCredentials.getSecretAccessKey, result.getCredentials.getSessionToken)
     }
 
     def refresh(): Unit = {}
