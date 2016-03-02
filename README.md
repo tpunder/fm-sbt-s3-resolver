@@ -9,6 +9,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
   * [Example](#example)
   * [Usage](#usage)
   * [IAM Policy Examples](#iam)
+  * [IAM Role Examples](#iam-role)
   * [Authors](#authors)
   * [Copyright](#copyright)
   * [License](#license)
@@ -50,7 +51,7 @@ All of these forms should work:
 
 ### S3 Credentials
 
-S3 Credentials are checked in the following places and order:
+S3 Credentials are checked **in the following places and _order_** (e.g. bucket specific settings (~/.sbt/.&lt;bucket_name&gt;_s3credentials) get resolved before global settings (~/.sbt/.s3credentials)):
 
 #### Bucket Specific Environment Variables
 
@@ -87,18 +88,32 @@ Example:
 
     AWS_ACCESS_KEY_ID (or AWS_ACCESS_KEY)
     AWS_SECRET_KEY (or AWS_SECRET_ACCESS_KEY)
+    AWS_ROLE_ARN
 
 Example:
 
+    // Basic Credentials
     AWS_ACCESS_KEY_ID="XXXXXX" AWS_SECRET_KEY="XXXXXX" sbt
-    
+
+    // IAM Role Credentials
+    AWS_ACCESS_KEY_ID="XXXXXX" AWS_SECRET_KEY="XXXXXX" AWS_ROLE_ARN="arn:aws:iam::123456789012:role/RoleName" sbt
+
 #### Java System Properties
 
+    // Basic Credentials
     -Daws.accessKeyId=XXXXXX -Daws.secretKey=XXXXXX 
 
-Example:
+    // IAM Role
+    -Daws.accessKeyId=XXXXXX -Daws.secretKey=XXXXXX -Daws.arnRole=arn:aws:iam::123456789012:role/RoleName
 
+
+Example:
+ 
+    // Basic Credentials
     SBT_OPTS="-Daws.accessKeyId=XXXXXX -Daws.secretKey=XXXXXX" sbt
+
+    // IAM Role Credentials
+    SBT_OPTS="-Daws.accessKeyId=XXXXXX -Daws.secretKey=XXXXXX -Daws.arnRole=arn:aws:iam::123456789012:role/RoleName" sbt
 
 #### Property File
   
@@ -108,6 +123,8 @@ The property files should have the following format:
   
     accessKey = XXXXXXXXXX
     secretKey = XXXXXXXXXX
+    // Optional IAM Role
+    roleArn = arn:aws:iam::123456789012:role/RoleName
 
 ## <a name="iam"></a>IAM Policy Examples
 
@@ -190,6 +207,40 @@ I recommend that you create IAM Credentials for reading/writing your Maven S3 Bu
       "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/<b>snapshots</b>/*"]
     }
   ]
+}
+</pre>
+
+## <a name="iam-role"></a>IAM Role Policy Examples
+
+This is a simple example where a Host AWS Account, can create a Role with permissions for a Client AWS Account to access the Host maven bucket.
+
+  1. Host AWS Account, creates an IAM Role named "ClientAccessRole" with policy:
+<pre>
+{
+&nbsp;&nbsp;"Version": "2012-10-17",
+&nbsp;&nbsp;"Statement": [
+&nbsp;&nbsp;  {
+&nbsp;&nbsp;    "Effect": "Allow",
+&nbsp;&nbsp;    "Principal": {
+&nbsp;&nbsp;      "AWS": "arn:aws:iam::[Client AWS Account Id]:user/[Client User Name]"
+&nbsp;&nbsp;      },
+&nbsp;&nbsp;      "Action": "sts:AssumeRole"
+&nbsp;&nbsp;  }
+&nbsp;&nbsp;]
+}
+</pre>
+  2. Associate the proper [IAM Policy Examples](#iam) to the Host Role
+  3. Client AWS Account needs to create an AWS IAM User [Client User Name] and associated a policy to gives it permissions to AssumeRole from the Host AWS Account:
+<pre>
+{
+&nbsp;&nbsp;"Version": "2012-10-17",
+&nbsp;&nbsp;"Statement": [
+&nbsp;&nbsp;  {
+&nbsp;&nbsp;    "Effect": "Allow",
+&nbsp;&nbsp;    "Action": "sts:AssumeRole",
+&nbsp;&nbsp;    "Resource": "arn:aws:iam::[Host AWS Account Id]:role/ClientAccessRole"
+&nbsp;&nbsp;  }
+&nbsp;&nbsp;]
 }
 </pre>
 
