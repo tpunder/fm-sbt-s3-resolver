@@ -33,7 +33,7 @@ import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
 
 import scala.collection.JavaConverters._
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 import scala.util.matching.Regex
 
 object S3URLHandler {
@@ -310,15 +310,37 @@ final class S3URLHandler extends URLHandler {
     
     if (null != l) l.end(event) //l.progress(evt.update(EMPTY_BUFFER, 0, meta.getContentLength))
   }
-  
+
+  def needsEncryption: Boolean = {
+    //TODO: Add alternative methods of setting this variable
+    val lookup: String = sys.env("ENCRYPT_AWS_SBT_UPLOADS")
+
+    if(lookup == null || lookup.isEmpty) {
+      println(s"No ENCRYPT_AWS_SBT_UPLOADS value found, using unencrypted uploads...")
+      false
+    } else {
+      Try(lookup.toBoolean) match {
+      case Success(bool) => bool
+      case Failure(e) =>
+        println(s"Could not convert ENCRYPT_AWS_SBT_UPLOADS value '$lookup' to a boolean value. Using unencrypted uploads...")
+        false
+    }}
+  }
+
   def upload(src: File, dest: URL, l: CopyProgressListener): Unit = {
     debug(s"upload($src, $dest)")
-    
+
     val event: CopyProgressEvent = new CopyProgressEvent()
     if (null != l) l.start(event)
     
     val (client, bucket, key) = getClientBucketAndKey(dest)
-    val res: PutObjectResult = client.putObject(bucket, key, src)
+    val meta: ObjectMetadata = client.getObjectMetadata(bucket, key)
+
+    if(needsEncryption) meta.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION)
+
+    val stream = new FileInputStream(src)
+
+    val res: PutObjectResult = client.putObject(bucket, key, stream, meta)
     
     if (null != l) l.end(event)
   }
