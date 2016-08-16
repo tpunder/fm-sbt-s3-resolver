@@ -15,11 +15,30 @@
  */
 package fm.sbt.s3
 
+import java.io.InputStream
 import java.net.{URL, URLConnection, URLStreamHandler}
 
+import com.amazonaws.services.s3.AmazonS3Client
+
 /**
- * This is a dummy URLStreamHandler so that s3:// URLs can be created without throwing a java.net.MalformedURLException.
+ * This is a dummy URLStreamHandler so that s3:// URLs can be created without throwing a
+ * java.net.MalformedURLException.
+ *
+ * But it provides an implementation just in case someone actually needs to use an S3 URL
+ * handler.
  */
 final class Handler extends URLStreamHandler {
-  def openConnection(url: URL): URLConnection = ???
+  val s3Client = new AmazonS3Client()
+
+  def openConnection(url: URL): URLConnection = {
+    new URLConnection(url) {
+      override def connect(): Unit = ()
+
+      override def getInputStream: InputStream = {
+        val bucketName = url.getHost
+        val key = url.getPath
+        s3Client.getObject(bucketName, key).getObjectContent
+      }
+    }
+  }
 }
