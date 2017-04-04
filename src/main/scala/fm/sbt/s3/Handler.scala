@@ -18,8 +18,10 @@ package fm.sbt.s3
 import java.net.{URL, URLConnection, URLStreamHandler}
 
 /**
- * This is a dummy URLStreamHandler so that s3:// URLs can be created without throwing a java.net.MalformedURLException.
+ * For normal SBT usage this is a dummy URLStreamHandler so that s3:// URLs can be created without throwing a
+ * java.net.MalformedURLException.  However for something like Coursier (https://github.com/coursier/coursier)
+ * this needs to be implemented since it doesn't use the normal SBT resolving mechanisms.
  */
 final class Handler extends URLStreamHandler {
-  def openConnection(url: URL): URLConnection = ???
+  def openConnection(url: URL): URLConnection = new S3URLConnection(url)
 }
