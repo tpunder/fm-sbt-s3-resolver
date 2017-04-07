@@ -80,10 +80,14 @@ object S3URLHandler {
     protected def getRoleArn(keys: String*): String
 
     def getCredentials(): AWSCredentials = {
+      val roleArn: String = getRoleArn(RoleArnKeyNames: _*)
+      
+      if (roleArn == null || roleArn == "") return null
+
       val securityTokenService: AWSSecurityTokenService = AWSSecurityTokenServiceClient.builder().withCredentials(providerChain).build()
 
       val roleRequest: AssumeRoleRequest = new AssumeRoleRequest()
-        .withRoleArn(getRoleArn(RoleArnKeyNames: _*))
+        .withRoleArn(roleArn)
         .withRoleSessionName(System.currentTimeMillis.toString)
 
       val result: AssumeRoleResult = securityTokenService.assumeRole(roleRequest)
@@ -100,7 +104,7 @@ object S3URLHandler {
     val RoleArnKeyName: String = "aws.roleArn"
     val RoleArnKeyNames: Seq[String] = Seq(RoleArnKeyName)
 
-    protected def getRoleArn(keys: String*) = keys.map( System.getProperty ).flatMap( Option(_) ).head.trim
+    protected def getRoleArn(keys: String*): String = keys.map( System.getProperty ).flatMap( Option(_) ).head.trim
   }
 
   private class RoleBasedEnvironmentVariableCredentialsProvider(providerChain: AWSCredentialsProviderChain)
@@ -109,7 +113,7 @@ object S3URLHandler {
     val RoleArnKeyName: String = "AWS_ROLE_ARN"
     val RoleArnKeyNames: Seq[String] = Seq("AWS_ROLE_ARN")
 
-    protected def getRoleArn(keys: String*) = keys.map( toEnvironmentVariableName ).map( System.getenv ).flatMap( Option(_) ).head.trim
+    protected def getRoleArn(keys: String*): String = keys.map( toEnvironmentVariableName ).map( System.getenv ).flatMap( Option(_) ).head.trim
   }
 
   private class RoleBasedPropertiesFileCredentialsProvider(providerChain: AWSCredentialsProviderChain, fileName: String)
