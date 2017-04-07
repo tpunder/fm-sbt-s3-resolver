@@ -19,19 +19,16 @@ import java.io.{File, FileInputStream, InputStream}
 import java.net.{InetAddress, URI, URL}
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
-
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
-import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.regions.{Region, RegionUtils, Regions}
 import com.amazonaws.services.s3.model.{AmazonS3Exception, GetObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata, PutObjectResult, S3Object}
-import com.amazonaws.services.s3.{AmazonS3Client, AmazonS3URI}
-import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient
+import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client, AmazonS3URI}
+import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClient}
 import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
-
 import scala.collection.JavaConverters._
 import scala.util.Try
 import scala.util.matching.Regex
@@ -83,7 +80,7 @@ object S3URLHandler {
     protected def getRoleArn(keys: String*): String
 
     def getCredentials(): AWSCredentials = {
-      val securityTokenService: AWSSecurityTokenServiceClient = new AWSSecurityTokenServiceClient(providerChain)
+      val securityTokenService: AWSSecurityTokenService = AWSSecurityTokenServiceClient.builder().withCredentials(providerChain).build()
 
       val roleRequest: AssumeRoleRequest = new AssumeRoleRequest()
         .withRoleArn(getRoleArn(RoleArnKeyNames: _*))
@@ -179,11 +176,9 @@ final class S3URLHandler extends URLHandler {
       new BucketSpecificSystemPropertiesCredentialsProvider(bucket),
       makePropertiesFileCredentialsProvider(s".s3credentials_${bucket}"),
       makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
-      new EnvironmentVariableCredentialsProvider(),
-      new SystemPropertiesCredentialsProvider(),
-      new ProfileCredentialsProvider(),
+      DefaultAWSCredentialsProviderChain.getInstance(),
       makePropertiesFileCredentialsProvider(".s3credentials"),
-      new InstanceProfileCredentialsProvider()
+      InstanceProfileCredentialsProvider.getInstance()
     )
 
     val basicProviderChain: AWSCredentialsProviderChain = new AWSCredentialsProviderChain(basicProviders: _*)
@@ -234,11 +229,15 @@ final class S3URLHandler extends URLHandler {
     }
     configuration
   }
-  
-  def getClientBucketAndKey(url: URL): (AmazonS3Client, String, String) = {
+
+  def getClientBucketAndKey(url: URL): (AmazonS3, String, String) = {
     val (bucket, key) = getBucketAndKey(url)
-    val client: AmazonS3Client = new AmazonS3Client(getCredentials(bucket), getProxyConfiguration)
-    
+
+    val client: AmazonS3 = AmazonS3Client.builder()
+      .withCredentials(new AWSStaticCredentialsProvider(getCredentials(bucket)))
+      .withClientConfiguration(getProxyConfiguration)
+      .build()
+
     val region: Option[Region] = getRegion(url, bucket, client)
     region.foreach{ client.setRegion }
     
@@ -327,7 +326,7 @@ final class S3URLHandler extends URLHandler {
   def setRequestMethod(requestMethod: Int): Unit = debug(s"setRequestMethod($requestMethod)")
   
   // Try to get the region of the S3 URL so we can set it on the S3Client
-  def getRegion(url: URL, bucket: String, client: AmazonS3Client): Option[Region] = {
+  def getRegion(url: URL, bucket: String, client: AmazonS3): Option[Region] = {
     val region: Option[String] = getRegionNameFromURL(url) orElse getRegionNameFromDNS(bucket) orElse getRegionNameFromService(bucket, client)
 
     region.map{ RegionUtils.getRegion }.flatMap{ Option(_) }
@@ -348,7 +347,7 @@ final class S3URLHandler extends URLHandler {
   }
   
   // TODO: cache the result of this so we aren't always making the call
-  def getRegionNameFromService(bucket: String, client: AmazonS3Client): Option[String] = {
+  def getRegionNameFromService(bucket: String, client: AmazonS3): Option[String] = {
     // This might fail if the current credentials don't have access to the getBucketLocation call
     Try { client.getBucketLocation(bucket) }.toOption
   }
