@@ -18,10 +18,24 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 
 ### Resolving Dependencies via S3
 
+Maven Style:
+
     resolvers += "FrugalMechanic Snapshots" at "s3://maven.frugalmechanic.com/snapshots"
+
+Ivy Style:
+
+    resolvers += Resolver.url("FrugalMechanic Snapshots", url("s3://maven.frugalmechanic.com/snapshots"))(Resolver.ivyStylePatterns)
 
 ### Publishing to S3
 
+Maven Style:
+
+    publishMavenStyle := true
+    publishTo := Some("FrugalMechanic Snapshots" at "s3://maven.frugalmechanic.com/snapshots")
+
+Ivy Style:
+
+    publishMavenStyle := false
     publishTo := Some("FrugalMechanic Snapshots" at "s3://maven.frugalmechanic.com/snapshots")
 
 ### Valid s3:// URL Formats
