@@ -60,8 +60,8 @@ pomExtra := (
       <id>tim</id>
       <name>Tim Underwood</name>
       <email>tim@eluvio.com</email>
-      <organization>Frugal Mechanic</organization>
-      <organizationUrl>http://frugalmechanic.com</organizationUrl>
+      <organization>Eluvio</organization>
+      <organizationUrl>https://www.eluvio.com</organizationUrl>
     </developer>
   </developers>
   <scm>
