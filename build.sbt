@@ -2,7 +2,7 @@ name := "fm-sbt-s3-resolver"
 
 organization := "com.frugalmechanic"
 
-version := "0.10.0"
+version := "0.11.0-SNAPSHOT"
 
 description := "SBT S3 Resolver Plugin"
 
