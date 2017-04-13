@@ -18,9 +18,9 @@ package fm.sbt
 import java.io.{File, FileInputStream, InputStream}
 import java.net.{InetAddress, URI, URL}
 import java.util.{Properties, function}
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
-import com.amazonaws.ClientConfiguration
+import com.amazonaws.{AmazonClientException, ClientConfiguration}
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
 import com.amazonaws.regions.{Region, RegionUtils, Regions}
@@ -237,25 +237,45 @@ final class S3URLHandler extends URLHandler {
   // Bucket name => requires S3 server-side-encryption
   private val bucketSSEPolicy: ConcurrentHashMap[String, Boolean] = new ConcurrentHashMap()
 
+  /**
+    * Simple implementation of Java 8's ConcurrentMap.computeIfAbsent for Java 7.
+    *
+    * @param map the map
+    * @param key they key to the map
+    * @param createNewValue a function that returns a value for a given key
+    * @tparam K the key type
+    * @tparam V the value type
+    * @return a previous-existing value for key, or a new value returned from func(key)
+    */
+  def computeIfAbsent[K, V](map: ConcurrentMap[K,V], key: K)(createNewValue: (K) => V): V = {
+    var value = map.get(key)
+    if (value == null) {
+      val newValue = createNewValue(key)
+      value = map.putIfAbsent(key, newValue) match {
+        case null => newValue
+        //if another thread beat us to it, then return their copy and ignore newValue
+        case existingValue => existingValue
+      }
+    }
+    value
+  }
+
   def getClientBucketAndKey(url: URL): (AmazonS3, String, String) = {
     val (bucket, key) = getBucketAndKey(url)
 
-    val client = amazonS3ClientCache.computeIfAbsent(bucket, createClient(bucket, url))
-
-    (client, bucket, key)
+   val client = computeIfAbsent(amazonS3ClientCache, bucket)(createClient(bucket, url))
+   (client, bucket, key)
   }
 
-  def createClient(bucket : String, url: URL) = new function.Function[String, AmazonS3] {
-    override def apply(t: String): AmazonS3 = {
-      val client = AmazonS3Client.builder()
-        .withCredentials(getCredentialsProvider(bucket))
-        .withClientConfiguration(getProxyConfiguration)
-        .withRegion(getRegion(url, bucket))
-        .build()
+  def createClient(bucket : String, url: URL) : (String) => AmazonS3 = k => {
+    val client = AmazonS3Client.builder()
+      .withCredentials(getCredentialsProvider(bucket))
+      .withClientConfiguration(getProxyConfiguration)
+      .withRegion(getRegion(url, bucket))
+      .build()
 
-      Message.info("S3URLHandler - Created S3 Client for bucket: "+bucket+" and region: "+client.getRegionName)
-      client
-    }
+    Message.info("S3URLHandler - Created S3 Client for bucket: "+bucket+" and region: "+client.getRegionName)
+    client
   }
 
   def getURLInfo(url: URL, timeout: Int): URLInfo = try {
@@ -331,13 +351,12 @@ final class S3URLHandler extends URLHandler {
     * need to include the SSE header in future requests.
     *
     * @param client the S3 client
-    * @param bucket the bucket name
     * @param defaultValue the default value, which allows users to specify SSE even if the bucket
     *                     doesn't require it (Although you should require it if you need SSE)
     * @return
     */
-  def detectBucketSSE(client: AmazonS3, bucket: String, defaultValue: Boolean) = new function.Function[String, Boolean] {
-    override def apply(t: String): Boolean = {
+  def detectBucketSSE(client: AmazonS3, defaultValue: Boolean) : String => Boolean =
+    bucket => {
       import com.amazonaws.AmazonServiceException
       import com.amazonaws.services.s3.model.ObjectMetadata
       import com.amazonaws.services.s3.model.PutObjectRequest
@@ -354,16 +373,17 @@ final class S3URLHandler extends URLHandler {
       try {
         client.putObject(req)
         client.deleteObject(bucket, objectKey)
+        Message.info("Bucket policies allowed creation of unencrypted file. SSE = false.")
+        defaultValue
       } catch {
-        case e: AmazonServiceException =>
-          if (403 == e.getStatusCode) {
-            Message.info("Bucket policies required server-side encryption. SSE = true.")
-            return true
-          }
+        case e: AmazonServiceException if e.getStatusCode == 403 =>
+          Message.info("Bucket policies required server-side encryption. SSE = true.")
+          true
+        case e : AmazonClientException =>
+          Message.info(s"Got ${e.getClass.getName} when trying to create SSE test file. Setting SSE = false. See debug")
+          Message.debug(e.toString)
+          defaultValue
       }
-      Message.info("Bucket policies allowed creation of unencrypted file. SSE = false.")
-      defaultValue
-    }
   }
 
   def upload(src: File, dest: URL, l: CopyProgressListener): Unit = {
@@ -374,7 +394,7 @@ final class S3URLHandler extends URLHandler {
     if (null != l) l.start(event)
     
     val (client, bucket, key) = getClientBucketAndKey(dest)
-    val requiresSSE = bucketSSEPolicy.computeIfAbsent(bucket, detectBucketSSE(client, bucket, defaultValue = false))
+    val requiresSSE = computeIfAbsent(bucketSSEPolicy, bucket)(detectBucketSSE(client, defaultValue = false))
 
     val req = new PutObjectRequest(bucket, key, src)
     if (requiresSSE) {
