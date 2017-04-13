@@ -22,15 +22,14 @@ import java.util.concurrent.ConcurrentHashMap
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
-import com.amazonaws.regions.{Region, RegionUtils, Regions}
-import com.amazonaws.services.s3.model.{AmazonS3Exception, GetObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata, PutObjectResult, S3Object}
+import com.amazonaws.regions.Regions
+import com.amazonaws.services.s3.model._
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client, AmazonS3URI}
 import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClient}
 import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
 import scala.collection.JavaConverters._
-import scala.util.Try
 import scala.util.matching.Regex
 
 object S3URLHandler {
@@ -158,7 +157,13 @@ object S3URLHandler {
 final class S3URLHandler extends URLHandler {
   import fm.sbt.S3URLHandler._
   import org.apache.ivy.util.url.URLHandler.{UNAVAILABLE, URLInfo}
-  
+
+  // Cache of Bucket Name => AmazonS3 Client Instance
+  private val amazonS3ClientCache: ConcurrentHashMap[String,AmazonS3] = new ConcurrentHashMap()
+
+  // Cache of Bucket Name => true/false (requires Server Side Encryption or not)
+  private val bucketRequiresSSE: ConcurrentHashMap[String,Boolean] = new ConcurrentHashMap()
+
   def isReachable(url: URL): Boolean = getURLInfo(url).isReachable
   def isReachable(url: URL, timeout: Int): Boolean = getURLInfo(url, timeout).isReachable
   def getContentLength(url: URL): Long = getURLInfo(url).getContentLength
@@ -227,9 +232,6 @@ final class S3URLHandler extends URLHandler {
     }
     configuration
   }
-
-  // Bucket Name => AmazonS3
-  private val amazonS3ClientCache: ConcurrentHashMap[String,AmazonS3] = new ConcurrentHashMap()
 
   def getClientBucketAndKey(url: URL): (AmazonS3, String, String) = {
     val (bucket, key) = getBucketAndKey(url)
@@ -316,19 +318,51 @@ final class S3URLHandler extends URLHandler {
     
     if (null != l) l.end(event) //l.progress(evt.update(EMPTY_BUFFER, 0, meta.getContentLength))
   }
-  
+
   def upload(src: File, dest: URL, l: CopyProgressListener): Unit = {
     debug(s"upload($src, $dest)")
-    
+
     val event: CopyProgressEvent = new CopyProgressEvent()
     if (null != l) l.start(event)
-    
+
     val (client, bucket, key) = getClientBucketAndKey(dest)
-    val res: PutObjectResult = client.putObject(bucket, key, src)
-    
+
+    // Nested helper method for performing the actual PUT
+    def putImpl(serverSideEncryption: Boolean): PutObjectResult = {
+      val meta: ObjectMetadata = new ObjectMetadata()
+      if (serverSideEncryption) meta.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION)
+      client.putObject(new PutObjectRequest(bucket, key, src).withMetadata(meta))
+    }
+
+    // Do we know for sure that this bucket requires SSE?
+    val requiresSSE: Boolean = bucketRequiresSSE.containsKey(bucket)
+
+    val res: PutObjectResult = if (requiresSSE) {
+      // We know we require SSE
+      putImpl(true)
+    } else {
+      try {
+        // We either don't require SSE or don't know yet so we try without SSE enabled
+        putImpl(false)
+      } catch {
+        case ex: AmazonS3Exception if ex.getStatusCode() == 403 =>
+          debug(s"upload($src, $dest) failed with a 403 status code.  Retrying with Server Side Encryption Enabled.")
+
+          // Retry with SSE
+          val res: PutObjectResult = putImpl(true)
+
+          // If that succeeded then save the fact that we require SSE for future requests
+          bucketRequiresSSE.put(bucket, true)
+
+          Message.info(s"S3URLHandler - Enabled Server Side Encryption (SSE) for bucket: $bucket")
+
+          res
+      }
+    }
+
     if (null != l) l.end(event)
   }
-  
+
   // I don't think we care what this is set to
   def setRequestMethod(requestMethod: Int): Unit = debug(s"setRequestMethod($requestMethod)")
   
