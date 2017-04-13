@@ -10,6 +10,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
   * [Usage](#usage)
   * [IAM Policy Examples](#iam)
   * [IAM Role Examples](#iam-role)
+  * [S3 Server-Side Encryption](#server-side-encryption)
   * [Authors](#authors)
   * [Copyright](#copyright)
   * [License](#license)
@@ -257,6 +258,47 @@ This is a simple example where a Host AWS Account, can create a Role with permis
 &nbsp;&nbsp;]
 }
 </pre>
+
+## <a name="server-side-encryption"></a>S3 Server-Side Encryption
+S3 supports <a href="http://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html">server side encryption</a>.
+The plugin will automatically detect if it needs to ask S3 to use SSE, based on the policies you have on your bucket. If
+your bucket denies `PutObject` requests that aren't using SSE, the plugin will include the SSE header in future requests.
+
+To make use of SSE, configure your bucket to enforce the SSE header for `PutObject` requests.
+
+Example:
+```json
+{
+  "Version": "2012-10-17",
+  "Id": "PutObjPolicy",
+  "Statement": [
+    {
+      "Sid": "DenyIncorrectEncryptionHeader",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::YOUR_BUCKET_HERE/*",
+      "Condition": {
+        "StringNotEquals": {
+          "s3:x-amz-server-side-encryption": "AES256"
+        }
+      }
+    },
+    {
+      "Sid": "DenyUnEncryptedObjectUploads",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::YOUR_BUCKET_HERE/*",
+      "Condition": {
+        "Null": {
+          "s3:x-amz-server-side-encryption": "true"
+        }
+      }
+    }
+  ]
+}
+```
 
 ## <a name="authors"></a>Authors
 

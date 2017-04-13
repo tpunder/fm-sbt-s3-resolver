@@ -17,18 +17,21 @@ package fm.sbt
 
 import java.io.{File, FileInputStream, InputStream}
 import java.net.{InetAddress, URI, URL}
-import java.util.Properties
+import java.util.{Properties, function}
 import java.util.concurrent.ConcurrentHashMap
+
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
 import com.amazonaws.regions.{Region, RegionUtils, Regions}
-import com.amazonaws.services.s3.model.{AmazonS3Exception, GetObjectRequest, ListObjectsRequest, ObjectListing, ObjectMetadata, PutObjectResult, S3Object}
+import com.amazonaws.services.s3.model._
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client, AmazonS3URI}
 import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClient}
 import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
+import sbt.Resolver.url
+
 import scala.collection.JavaConverters._
 import scala.util.Try
 import scala.util.matching.Regex
@@ -231,24 +234,28 @@ final class S3URLHandler extends URLHandler {
   // Bucket Name => AmazonS3
   private val amazonS3ClientCache: ConcurrentHashMap[String,AmazonS3] = new ConcurrentHashMap()
 
+  // Bucket name => requires S3 server-side-encryption
+  private val bucketSSEPolicy: ConcurrentHashMap[String, Boolean] = new ConcurrentHashMap()
+
   def getClientBucketAndKey(url: URL): (AmazonS3, String, String) = {
     val (bucket, key) = getBucketAndKey(url)
 
-    var client: AmazonS3 = amazonS3ClientCache.get(bucket)
+    val client = amazonS3ClientCache.computeIfAbsent(bucket, createClient(bucket, url))
 
-    if (null == client) {
-      client = AmazonS3Client.builder()
+    (client, bucket, key)
+  }
+
+  def createClient(bucket : String, url: URL) = new function.Function[String, AmazonS3] {
+    override def apply(t: String): AmazonS3 = {
+      val client = AmazonS3Client.builder()
         .withCredentials(getCredentialsProvider(bucket))
         .withClientConfiguration(getProxyConfiguration)
         .withRegion(getRegion(url, bucket))
         .build()
 
-      amazonS3ClientCache.put(bucket, client)
-
       Message.info("S3URLHandler - Created S3 Client for bucket: "+bucket+" and region: "+client.getRegionName)
+      client
     }
-
-    (client, bucket, key)
   }
 
   def getURLInfo(url: URL, timeout: Int): URLInfo = try {
@@ -316,15 +323,67 @@ final class S3URLHandler extends URLHandler {
     
     if (null != l) l.end(event) //l.progress(evt.update(EMPTY_BUFFER, 0, meta.getContentLength))
   }
-  
+
+  /**
+    * Attempts to detect if an S3 bucket has a policy that requires the client to request server-side
+    * encryption (provided by a request header). To do this, we try to put a small file in the
+    * bucket without including the SSE header. If the file is allowed to be created, then we don't
+    * need to include the SSE header in future requests.
+    *
+    * @param client the S3 client
+    * @param bucket the bucket name
+    * @param defaultValue the default value, which allows users to specify SSE even if the bucket
+    *                     doesn't require it (Although you should require it if you need SSE)
+    * @return
+    */
+  def detectBucketSSE(client: AmazonS3, bucket: String, defaultValue: Boolean) = new function.Function[String, Boolean] {
+    override def apply(t: String): Boolean = {
+      import com.amazonaws.AmazonServiceException
+      import com.amazonaws.services.s3.model.ObjectMetadata
+      import com.amazonaws.services.s3.model.PutObjectRequest
+      import java.io.ByteArrayInputStream
+      debug("Checking to see if bucket requires server-side encryption: " + bucket)
+      val objectKey = ".test-server-side-encryption"
+      val bytes = "This file tests if S3 SSE is required. If present, your bucket does not enforce SSE.".getBytes
+      val inputStream = new ByteArrayInputStream(bytes)
+      val md = new ObjectMetadata
+      md.setContentLength(bytes.length)
+      md.setContentType("text/plain")
+      val req = new PutObjectRequest(bucket, objectKey, inputStream, md)
+
+      try {
+        client.putObject(req)
+        client.deleteObject(bucket, objectKey)
+      } catch {
+        case e: AmazonServiceException =>
+          if (403 == e.getStatusCode) {
+            Message.info("Bucket policies required server-side encryption. SSE = true.")
+            return true
+          }
+      }
+      Message.info("Bucket policies allowed creation of unencrypted file. SSE = false.")
+      defaultValue
+    }
+  }
+
   def upload(src: File, dest: URL, l: CopyProgressListener): Unit = {
     debug(s"upload($src, $dest)")
-    
+
+
     val event: CopyProgressEvent = new CopyProgressEvent()
     if (null != l) l.start(event)
     
     val (client, bucket, key) = getClientBucketAndKey(dest)
-    val res: PutObjectResult = client.putObject(bucket, key, src)
+    val requiresSSE = bucketSSEPolicy.computeIfAbsent(bucket, detectBucketSSE(client, bucket, defaultValue = false))
+
+    val req = new PutObjectRequest(bucket, key, src)
+    if (requiresSSE) {
+      val md = new ObjectMetadata
+      md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION)
+      req.setMetadata(md)
+    }
+
+    val res: PutObjectResult = client.putObject(req)
     
     if (null != l) l.end(event)
   }
