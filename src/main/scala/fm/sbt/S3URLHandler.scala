@@ -17,23 +17,21 @@ package fm.sbt
 
 import java.io.{File, FileInputStream, InputStream}
 import java.net.{InetAddress, URI, URL}
-import java.util.{Properties, function}
+import java.util.Properties
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
 import com.amazonaws.{AmazonClientException, ClientConfiguration}
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
-import com.amazonaws.regions.{Region, RegionUtils, Regions}
+import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.model._
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client, AmazonS3URI}
 import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClient}
 import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
-import sbt.Resolver.url
 
 import scala.collection.JavaConverters._
-import scala.util.Try
 import scala.util.matching.Regex
 
 object S3URLHandler {
