@@ -66,7 +66,7 @@ All of these forms should work:
 
 ### S3 Credentials
 
-S3 Credentials are checked **in the following places and _order_** (e.g. bucket specific settings (~/.sbt/.&lt;bucket_name&gt;_s3credentials) get resolved before global settings (~/.sbt/.s3credentials)):
+S3 Credentials are checked **in the following places and _order_** (e.g. bucket specific settings (\~/.sbt/.&lt;bucket_name&gt;_s3credentials) get resolved before global settings (\~/.sbt/.s3credentials)):
 
 #### Bucket Specific Environment Variables
 
