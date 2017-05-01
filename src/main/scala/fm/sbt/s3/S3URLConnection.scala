@@ -27,7 +27,7 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
 
   private case class GETResponse(obj: S3Object) extends S3Response {
     def meta: ObjectMetadata = obj.getObjectMetadata
-    def inputStream: Option[InputStream] = Option(obj.getObjectContent())
+    def inputStream: Option[InputStream] = Option(obj.getObjectContent)
     def close(): Unit = obj.close()
   }
 
@@ -62,7 +62,7 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
     field.toLowerCase match {
       case "content-type" => response.map{ _.meta.getContentType }.orNull
       case "content-encoding" => response.map{ _.meta.getContentEncoding }.orNull
-      case "content-length" => response.map{ _.meta.getContentLength().toString }.orNull
+      case "content-length" => response.map{ _.meta.getContentLength.toString }.orNull
       case "last-modified" => response.map{ _.meta.getLastModified.getTime.toString }.orNull
       case _ => ""
     }

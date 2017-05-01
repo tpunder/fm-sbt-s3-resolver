@@ -15,13 +15,16 @@
  */
 package fm.sbt
 
-import java.util.{Collections, List}
+import java.util.Collections
 import sbt.{RawRepository, Resolver}
 
 final class S3RawRepository(val name: String) extends AnyVal {
   def atS3(location: String): Resolver = {
     require(null != location && location != "", "Empty Location!")
-    val pattern: List[String] = Collections.singletonList(resolvePattern(location, Resolver.mavenStyleBasePattern))
+    val pattern: java.util.List[String] = Collections.singletonList(resolvePattern(
+      location,
+      Resolver.mavenStyleBasePattern
+    ))
     new RawRepository(new S3URLResolver(name, location, pattern))
   }
   
