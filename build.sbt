@@ -30,7 +30,7 @@ EclipseKeys.withSource := true
 // Don't use the default "target" directory (which is what SBT uses)
 EclipseKeys.eclipseOutput := Some(".target")
 
-val amazonSDKVersion = "1.11.117"
+val amazonSDKVersion = "1.11.125"
 
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
@@ -43,12 +43,13 @@ releasePublishArtifactsAction := PgpKeys.publishSigned.value
 
 publishMavenStyle := true
 
-publishTo <<= version { (v: String) =>
+publishTo := {
   val nexus = "https://oss.sonatype.org/"
-  if (v.trim.endsWith("SNAPSHOT")) 
-    Some("snapshots" at nexus + "content/repositories/snapshots") 
-  else
-    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+  if (version.value.trim.endsWith("SNAPSHOT")) {
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  } else {
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+  }
 }
 
 // From: https://github.com/xerial/sbt-sonatype#using-with-sbt-release-plugin
