@@ -15,10 +15,9 @@
  */
 package fm.sbt
 
-import java.util.List
 import org.apache.ivy.plugins.resolver.IBiblioResolver
 
-final class S3URLResolver(name: String, root: String, pattern: List[String]) extends IBiblioResolver {
+final class S3URLResolver(name: String, root: String, pattern: java.util.List[String]) extends IBiblioResolver {
   setRepository(new S3URLRepository())
   setName(name)
   setM2compatible(true)
@@ -26,5 +25,5 @@ final class S3URLResolver(name: String, root: String, pattern: List[String]) ext
   setArtifactPatterns(pattern)
   setIvyPatterns(pattern)
   
-  override def getTypeName(): String = "s3"
+  override def getTypeName: String = "s3"
 }

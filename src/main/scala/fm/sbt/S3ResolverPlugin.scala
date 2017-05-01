@@ -15,21 +15,111 @@
  */
 package fm.sbt
 
-import sbt._
-import Keys._
-
-import java.io.{ByteArrayOutputStream, InputStream}
 import java.net.{URL, URLStreamHandler, URLStreamHandlerFactory}
-import org.apache.ivy.util.Message
+
+import com.amazonaws.auth.AWSCredentialsProvider
 import org.apache.ivy.util.url.{URLHandlerDispatcher, URLHandlerRegistry}
-import scala.annotation.tailrec
+import sbt.Keys._
+import sbt._
+import sbt.complete.DefaultParsers._
+
+import scala.util.Try
 
 /**
  * All this does is register the s3:// url handler with the JVM and IVY
  */
 object S3ResolverPlugin extends AutoPlugin {
-  object autoImport extends S3Implicits
-  
+  object autoImport extends S3Implicits {
+
+    lazy val S3CredentialsProvider: SettingKey[String => AWSCredentialsProvider] = {
+      SettingKey[String => AWSCredentialsProvider]("S3CredentialsProvider", "AWS credentials provider to access S3")
+    }
+
+    lazy val showS3Credentials: InputKey[Unit] = {
+      InputKey[Unit]("showS3Credentials", "Just outputs credentials that are loaded by the s3credentials provider")
+    }
+  }
+
+  import autoImport._
+
+  // This plugin will load automatically
+  override def trigger: PluginTrigger = allRequirements
+
+  override def projectSettings: Seq[Setting[_]] = Seq(
+    S3CredentialsProvider := S3URLHandler.defaultCredentialsProviderChain,
+    showS3Credentials := {
+      val log = state.value.log
+
+      spaceDelimited("<arg>").parsed match {
+        case bucket :: Nil =>
+          val provider: AWSCredentialsProvider = S3CredentialsProvider.value(bucket)
+
+          Try {
+            Option(provider.getCredentials) match {
+              case Some(awsCredentials) =>
+                log.info("Found following AWS credentials:")
+                log.info("Access key: " + awsCredentials.getAWSAccessKeyId)
+                log.info("Secret key: " + awsCredentials.getAWSSecretKey)
+
+              case None =>
+                log.error("Couldn't find credentials for bucked: %s" format bucket)
+            }
+          } recover { case e: Exception =>
+            log.error(e.getMessage)
+          }
+
+        case Nil =>
+          log.error("Bucket name not given")
+
+        case _ =>
+          log.error("Too many arguments for showS3Credentials")
+      }
+    },
+    onLoad in Global := (onLoad in Global).value andThen { state =>
+      def info: String => Unit = state.log.info(_)
+
+      // We need s3:// URLs to work without throwing a java.net.MalformedURLException
+      // which means installing a dummy URLStreamHandler.  We only install the handler
+      // if it's not already installed (since a second call to URL.setURLStreamHandlerFactory
+      // will fail).
+      try {
+        new URL("s3://example.com")
+        info("The s3:// URLStreamHandler is already installed")
+      } catch {
+        // This means we haven't installed the handler, so install it
+        case _: java.net.MalformedURLException =>
+          info("Installing the s3:// URLStreamHandler via java.net.URL.setURLStreamHandlerFactory")
+          URL.setURLStreamHandlerFactory(S3URLStreamHandlerFactory)
+      }
+
+      //
+      // This sets up the Ivy URLHandler for s3:// URLs
+      //
+      val dispatcher: URLHandlerDispatcher = URLHandlerRegistry.getDefault match {
+        // If the default is already a URLHandlerDispatcher then just use that
+        case disp: URLHandlerDispatcher =>
+          info("Using the existing Ivy URLHandlerDispatcher to handle s3:// URLs")
+          disp
+        // Otherwise create a new URLHandlerDispatcher
+        case default =>
+          info("Creating a new Ivy URLHandlerDispatcher to handle s3:// URLs")
+          val disp: URLHandlerDispatcher = new URLHandlerDispatcher()
+          disp.setDefault(default)
+          URLHandlerRegistry.setDefault(disp)
+          disp
+      }
+
+      // Register (or replace) the s3 handler
+      dispatcher.setDownloader("s3", new S3URLHandler)
+
+      val extracted: Extracted = Project.extract(state)
+
+      S3URLHandler.registerBucketCredentialsProvider(extracted.get(S3CredentialsProvider))
+
+      state
+    }
+  )
+
   //
   // This *should* work but it looks like SBT is doing some multi class loader stuff
   // because the class loader used to load java.net.URL doesn't see fm.sbt.s3.Handler.
@@ -51,42 +141,7 @@ object S3ResolverPlugin extends AutoPlugin {
       case _    => null
     }
   }
-  
-  // We need s3:// URLs to work without throwing a java.net.MalformedURLException
-  // which means installing a dummy URLStreamHandler.  We only install the handler
-  // if it's not already installed (since a second call to URL.setURLStreamHandlerFactory
-  // will fail).
-  try {
-    new URL("s3://example.com")
-    info("The s3:// URLStreamHandler is already installed")
-  } catch {
-    // This means we haven't installed the handler, so install it
-    case _: java.net.MalformedURLException => 
-      info("Installing the s3:// URLStreamHandler via java.net.URL.setURLStreamHandlerFactory")
-      URL.setURLStreamHandlerFactory(S3URLStreamHandlerFactory)
-  }
-  
-  //
-  // This sets up the Ivy URLHandler for s3:// URLs
-  //
-  private val dispatcher: URLHandlerDispatcher = URLHandlerRegistry.getDefault() match {
-    // If the default is already a URLHandlerDispatcher then just use that
-    case disp: URLHandlerDispatcher =>
-      info("Using the existing Ivy URLHandlerDispatcher to handle s3:// URLs")
-      disp
-    // Otherwise create a new URLHandlerDispatcher
-    case default =>
-      info("Creating a new Ivy URLHandlerDispatcher to handle s3:// URLs")
-      val disp: URLHandlerDispatcher = new URLHandlerDispatcher()
-      disp.setDefault(default)
-      URLHandlerRegistry.setDefault(disp)
-      disp
-  }
-  
-  // Register (or replace) the s3 handler
-  dispatcher.setDownloader("s3", new S3URLHandler)
-  
-  
+
   //
   // More hackery to make directory listings work for s3:// URLs
   //
@@ -131,9 +186,6 @@ object S3ResolverPlugin extends AutoPlugin {
 //       info(s"Patched $urlResolverClass to work with s3:// URLs")
 //     }
 //   }
-  
-  // Not sure how to log using SBT so I'm using Ivy's Message class
-  private def info(msg: String): Unit = Message.info(msg)
   
   // private def toBytes(is: InputStream): Array[Byte] = {
   //   require(null != is, "null InputStream!")
