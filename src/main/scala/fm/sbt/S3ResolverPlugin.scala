@@ -31,7 +31,7 @@ import scala.util.Try
 object S3ResolverPlugin extends AutoPlugin {
   object autoImport extends S3Implicits {
 
-    lazy val S3credentialsProvider: SettingKey[String => AWSCredentialsProvider] = {
+    lazy val S3CredentialsProvider: SettingKey[String => AWSCredentialsProvider] = {
       SettingKey[String => AWSCredentialsProvider]("s3credentials", "AWS credentials provider to access S3")
     }
 
@@ -46,13 +46,13 @@ object S3ResolverPlugin extends AutoPlugin {
   override def trigger: PluginTrigger = allRequirements
 
   override def projectSettings: Seq[Setting[_]] = Seq(
-    S3credentialsProvider := S3URLHandler.defaultCredentialsProviderChain,
+    S3CredentialsProvider := S3URLHandler.defaultCredentialsProviderChain,
     showS3Credentials := {
       val log = state.value.log
 
       spaceDelimited("<arg>").parsed match {
         case bucket :: Nil =>
-          val provider: AWSCredentialsProvider = S3credentialsProvider.value(bucket)
+          val provider: AWSCredentialsProvider = S3CredentialsProvider.value(bucket)
 
           Try {
             Option(provider.getCredentials) match {
@@ -114,7 +114,7 @@ object S3ResolverPlugin extends AutoPlugin {
 
       val extracted: Extracted = Project.extract(state)
 
-      S3URLHandler.registerBucketCredentialsProvider(extracted.get(S3credentialsProvider))
+      S3URLHandler.registerBucketCredentialsProvider(extracted.get(S3CredentialsProvider))
 
       state
     }
