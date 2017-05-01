@@ -32,7 +32,7 @@ object S3ResolverPlugin extends AutoPlugin {
   object autoImport extends S3Implicits {
 
     lazy val S3CredentialsProvider: SettingKey[String => AWSCredentialsProvider] = {
-      SettingKey[String => AWSCredentialsProvider]("s3credentials", "AWS credentials provider to access S3")
+      SettingKey[String => AWSCredentialsProvider]("S3CredentialsProvider", "AWS credentials provider to access S3")
     }
 
     lazy val showS3Credentials: InputKey[Unit] = {
