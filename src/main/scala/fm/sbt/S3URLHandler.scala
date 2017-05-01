@@ -19,16 +19,18 @@ import java.io.{File, FileInputStream, InputStream}
 import java.net.{InetAddress, URI, URL}
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
+
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.model._
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client, AmazonS3URI}
-import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClient}
 import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
+import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClient}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
+
 import scala.collection.JavaConverters._
 import scala.util.matching.Regex
 
@@ -59,7 +61,7 @@ object S3URLHandler {
     def AccessKeyName: String
     def SecretKeyName: String
     
-    def getCredentials(): AWSCredentials = {
+    def getCredentials: AWSCredentials = {
       val accessKey: String = getProp(s"${AccessKeyName}.${bucket}", s"${bucket}.${AccessKeyName}")
       val secretKey: String = getProp(s"${SecretKeyName}.${bucket}", s"${bucket}.${SecretKeyName}")
       
@@ -78,7 +80,7 @@ object S3URLHandler {
     // This should throw an exception if the value is missing
     protected def getRoleArn(keys: String*): String
 
-    def getCredentials(): AWSCredentials = {
+    def getCredentials: AWSCredentials = {
       val roleArn: String = getRoleArn(RoleArnKeyNames: _*)
 
       if (roleArn == null || roleArn == "") return null
@@ -139,13 +141,13 @@ object S3URLHandler {
   private class BucketSpecificRoleBasedSystemPropertiesCredentialsProvider(providerChain: AWSCredentialsProviderChain, bucket: String)
       extends RoleBasedSystemPropertiesCredentialsProvider(providerChain) {
 
-    override val RoleArnKeyNames: Seq[String] = Seq(s"${RoleArnKeyName}.${bucket}", s"${bucket}.${RoleArnKeyName}")
+    override val RoleArnKeyNames: Seq[String] = Seq(s"$RoleArnKeyName.$bucket", s"$bucket.$RoleArnKeyName")
   }
 
   private class BucketSpecificRoleBasedEnvironmentVariableCredentialsProvider(providerChain: AWSCredentialsProviderChain, bucket: String)
       extends RoleBasedEnvironmentVariableCredentialsProvider(providerChain) {
 
-    override val RoleArnKeyNames: Seq[String] = Seq(s"${RoleArnKeyName}.${bucket}", s"${bucket}.${RoleArnKeyName}")
+    override val RoleArnKeyNames: Seq[String] = Seq(s"$RoleArnKeyName.$bucket", s"$bucket.$RoleArnKeyName")
   }
   
   private def toEnvironmentVariableName(s: String): String = s.toUpperCase.replace('-','_').replace('.','_').replaceAll("[^A-Z0-9_]", "")
@@ -183,8 +185,8 @@ final class S3URLHandler extends URLHandler {
     val basicProviders: Vector[AWSCredentialsProvider] = Vector(
       new BucketSpecificEnvironmentVariableCredentialsProvider(bucket),
       new BucketSpecificSystemPropertiesCredentialsProvider(bucket),
-      makePropertiesFileCredentialsProvider(s".s3credentials_${bucket}"),
-      makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
+      makePropertiesFileCredentialsProvider(".s3credentials_%s" format bucket),
+      makePropertiesFileCredentialsProvider(".%s_s3credentials" format bucket),
       DefaultAWSCredentialsProviderChain.getInstance(),
       makePropertiesFileCredentialsProvider(".s3credentials"),
       InstanceProfileCredentialsProvider.getInstance()
@@ -195,14 +197,14 @@ final class S3URLHandler extends URLHandler {
     val roleBasedProviders: Vector[AWSCredentialsProvider] = Vector(
       new BucketSpecificRoleBasedEnvironmentVariableCredentialsProvider(basicProviderChain, bucket),
       new BucketSpecificRoleBasedSystemPropertiesCredentialsProvider(basicProviderChain, bucket),
-      new RoleBasedPropertiesFileCredentialsProvider(basicProviderChain, s".s3credentials_${bucket}"),
-      new RoleBasedPropertiesFileCredentialsProvider(basicProviderChain, s".${bucket}_s3credentials"),
+      new RoleBasedPropertiesFileCredentialsProvider(basicProviderChain, ".s3credentials_%s" format bucket),
+      new RoleBasedPropertiesFileCredentialsProvider(basicProviderChain, ".%s_s3credentials" format bucket),
       new RoleBasedEnvironmentVariableCredentialsProvider(basicProviderChain),
       new RoleBasedSystemPropertiesCredentialsProvider(basicProviderChain),
       new RoleBasedPropertiesFileCredentialsProvider(basicProviderChain, s".s3credentials")
     )
 
-    new AWSCredentialsProviderChain((roleBasedProviders ++ basicProviders): _*)
+    new AWSCredentialsProviderChain(roleBasedProviders ++ basicProviders: _*)
   }
 
   def getCredentialsProvider(bucket: String): AWSCredentialsProvider = {
@@ -216,7 +218,7 @@ final class S3URLHandler extends URLHandler {
         throw ex
     }
 
-    Message.info("S3URLHandler - Using AWS Access Key Id: "+credentialsProvider.getCredentials().getAWSAccessKeyId+" for bucket: "+bucket)
+    Message.info("S3URLHandler - Using AWS Access Key Id: "+credentialsProvider.getCredentials.getAWSAccessKeyId+" for bucket: "+bucket)
 
     credentialsProvider
   }
@@ -274,7 +276,7 @@ final class S3URLHandler extends URLHandler {
     
     val (client, bucket, key) = getClientBucketAndKey(url)
     val obj: S3Object = client.getObject(bucket, key)
-    obj.getObjectContent()
+    obj.getObjectContent
   }
   
   /**
@@ -296,7 +298,7 @@ final class S3URLHandler extends URLHandler {
     
     val keys: Seq[String] = listing.getCommonPrefixes.asScala ++ listing.getObjectSummaries.asScala.map{ _.getKey }
     
-    val res: Seq[URL] = keys.map{ k: String =>
+    val res: Seq[URL] = keys.map { k: String =>
       new URL(url.toString.stripSuffix("/") + "/" + k.stripPrefix(prefix))
     }
     
@@ -345,7 +347,7 @@ final class S3URLHandler extends URLHandler {
         // We either don't require SSE or don't know yet so we try without SSE enabled
         putImpl(false)
       } catch {
-        case ex: AmazonS3Exception if ex.getStatusCode() == 403 =>
+        case ex: AmazonS3Exception if ex.getStatusCode == 403 =>
           debug(s"upload($src, $dest) failed with a 403 status code.  Retrying with Server Side Encryption Enabled.")
 
           // Retry with SSE
@@ -365,7 +367,7 @@ final class S3URLHandler extends URLHandler {
 
   // I don't think we care what this is set to
   def setRequestMethod(requestMethod: Int): Unit = debug(s"setRequestMethod($requestMethod)")
-  
+
   // Try to get the region of the S3 URL so we can set it on the S3Client
   def getRegion(url: URL, bucket: String/*, client: AmazonS3*/): Regions = {
     val region: Option[String] = getRegionNameFromURL(url) orElse getRegionNameFromDNS(bucket) orElse Option(Regions.getCurrentRegion()).map{ _.getName }
@@ -375,13 +377,13 @@ final class S3URLHandler extends URLHandler {
   
   def getRegionNameFromURL(url: URL): Option[String] = {
     // We'll try the AmazonS3URI parsing first then fallback to our RegionMatcher
-    getAmazonS3URI(url).map{ _.getRegion }.flatMap{ Option(_) } orElse RegionMatcher.findFirstIn(url.toString)
+    getAmazonS3URI(url).map(_.getRegion).flatMap(Option(_)).orElse(RegionMatcher.findFirstIn(url.toString))
   }
   
   def getRegionNameFromDNS(bucket: String): Option[String] = {
     // This gives us something like s3-us-west-2-w.amazonaws.com which must have changed
     // at some point because the region from that hostname is no longer parsed by AmazonS3URI
-    val canonicalHostName: String = InetAddress.getByName(bucket+".s3.amazonaws.com").getCanonicalHostName()
+    val canonicalHostName: String = InetAddress.getByName(bucket + ".s3.amazonaws.com").getCanonicalHostName
     
     // So we use our regex based RegionMatcher to try and extract the region since AmazonS3URI doesn't work
     RegionMatcher.findFirstIn(canonicalHostName)
