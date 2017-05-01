@@ -32,6 +32,7 @@ import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
 
 import scala.collection.JavaConverters._
+import scala.util.Try
 import scala.util.matching.Regex
 
 object S3URLHandler {
@@ -246,21 +247,24 @@ final class S3URLHandler extends URLHandler {
   def getClientBucketAndKey(url: URL): (AmazonS3, String, String) = {
     val (bucket, key) = getBucketAndKey(url)
 
-    var client: AmazonS3 = amazonS3ClientCache.get(bucket)
+    Option(amazonS3ClientCache.get(bucket)) match {
+      case Some(client) => (client, bucket, key)
 
-    if (null == client) {
-      client = AmazonS3Client.builder()
-        .withCredentials(getCredentialsProvider(bucket))
-        .withClientConfiguration(getProxyConfiguration)
-        .withRegion(getRegion(url, bucket))
-        .build()
+      case None =>
+        val clientBuilder = AmazonS3Client.builder()
+          .withCredentials(getCredentialsProvider(bucket))
+          .withClientConfiguration(getProxyConfiguration)
 
-      amazonS3ClientCache.put(bucket, client)
+        val client = clientBuilder
+          .withRegion(getRegion(url, bucket, clientBuilder.build))
+          .build()
 
-      Message.info("S3URLHandler - Created S3 Client for bucket: "+bucket+" and region: "+client.getRegionName)
+        amazonS3ClientCache.put(bucket, client)
+
+        Message.info("S3URLHandler - Created S3 Client for bucket: " + bucket + " and region: " + client.getRegionName)
+
+        (client, bucket, key)
     }
-
-    (client, bucket, key)
   }
 
   def getURLInfo(url: URL, timeout: Int): URLInfo = try {
@@ -377,10 +381,17 @@ final class S3URLHandler extends URLHandler {
   def setRequestMethod(requestMethod: Int): Unit = debug(s"setRequestMethod($requestMethod)")
 
   // Try to get the region of the S3 URL so we can set it on the S3Client
-  def getRegion(url: URL, bucket: String/*, client: AmazonS3*/): Regions = {
-    val region: Option[String] = getRegionNameFromURL(url) orElse getRegionNameFromDNS(bucket) orElse Option(Regions.getCurrentRegion()).map{ _.getName }
+  def getRegion(url: URL, bucket: String, client: => AmazonS3): Regions = {
+    val region: Option[String] = getRegionNameFromURL(url)
+      .orElse(getRegionNameFromDNS(bucket))
+      .orElse(Option(Regions.getCurrentRegion).map(_.getName))
+      .orElse(getBucketLocation(bucket, client))
 
-    region.map{ Regions.fromName }.flatMap{ Option(_) } getOrElse Regions.DEFAULT_REGION
+    region.map(Regions.fromName).flatMap(Option(_)).getOrElse(Regions.DEFAULT_REGION)
+  }
+
+  def getBucketLocation(bucket: String, client: => AmazonS3): Option[String] = {
+    Try(client.getBucketLocation(bucket)).toOption
   }
   
   def getRegionNameFromURL(url: URL): Option[String] = {
