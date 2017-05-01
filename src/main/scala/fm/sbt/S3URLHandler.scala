@@ -39,7 +39,15 @@ object S3URLHandler {
 
   // This is for matching region names in URLs or host names
   private val RegionMatcher: Regex = Regions.values().map{ _.getName }.sortBy{ -1 * _.length }.mkString("|").r
-  
+
+  private var bucketCredentialsProvider: String => AWSCredentialsProvider = makePropertiesFileCredentialsProvider
+
+  def registerBucketCredentialsProvider(provider: String => AWSCredentialsProvider): Unit = {
+    bucketCredentialsProvider = provider
+  }
+
+  def getBucketCredentialsProvider: String => AWSCredentialsProvider = bucketCredentialsProvider
+
   private class S3URLInfo(available: Boolean, contentLength: Long, lastModified: Long) extends URLHandler.URLInfo(available, contentLength, lastModified)
   
   private class BucketSpecificSystemPropertiesCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
@@ -151,37 +159,13 @@ object S3URLHandler {
   }
   
   private def toEnvironmentVariableName(s: String): String = s.toUpperCase.replace('-','_').replace('.','_').replaceAll("[^A-Z0-9_]", "")
-}
-
-/**
- * This implements the Ivy URLHandler
- */
-final class S3URLHandler extends URLHandler {
-  import fm.sbt.S3URLHandler._
-  import org.apache.ivy.util.url.URLHandler.{UNAVAILABLE, URLInfo}
-
-  // Cache of Bucket Name => AmazonS3 Client Instance
-  private val amazonS3ClientCache: ConcurrentHashMap[String,AmazonS3] = new ConcurrentHashMap()
-
-  // Cache of Bucket Name => true/false (requires Server Side Encryption or not)
-  private val bucketRequiresSSE: ConcurrentHashMap[String,Boolean] = new ConcurrentHashMap()
-
-  def isReachable(url: URL): Boolean = getURLInfo(url).isReachable
-  def isReachable(url: URL, timeout: Int): Boolean = getURLInfo(url, timeout).isReachable
-  def getContentLength(url: URL): Long = getURLInfo(url).getContentLength
-  def getContentLength(url: URL, timeout: Int): Long = getURLInfo(url, timeout).getContentLength
-  def getLastModified(url: URL): Long = getURLInfo(url).getLastModified
-  def getLastModified(url: URL, timeout: Int): Long = getURLInfo(url, timeout).getLastModified
-  def getURLInfo(url: URL): URLInfo = getURLInfo(url, 0)
-  
-  private def debug(msg: String): Unit = Message.debug("S3URLHandler."+msg)
 
   private def makePropertiesFileCredentialsProvider(fileName: String): PropertiesFileCredentialsProvider = {
     val file: File = new File(DOT_SBT_DIR, fileName)
     new PropertiesFileCredentialsProvider(file.toString)
   }
 
-  private def makeCredentialsProviderChain(bucket: String): AWSCredentialsProviderChain = {
+  def defaultCredentialsProviderChain(bucket: String): AWSCredentialsProviderChain = {
     val basicProviders: Vector[AWSCredentialsProvider] = Vector(
       new BucketSpecificEnvironmentVariableCredentialsProvider(bucket),
       new BucketSpecificSystemPropertiesCredentialsProvider(bucket),
@@ -206,12 +190,36 @@ final class S3URLHandler extends URLHandler {
 
     new AWSCredentialsProviderChain(roleBasedProviders ++ basicProviders: _*)
   }
+}
+
+/**
+ * This implements the Ivy URLHandler
+ */
+final class S3URLHandler extends URLHandler {
+  import fm.sbt.S3URLHandler._
+  import org.apache.ivy.util.url.URLHandler.{UNAVAILABLE, URLInfo}
+
+  // Cache of Bucket Name => AmazonS3 Client Instance
+  private val amazonS3ClientCache: ConcurrentHashMap[String,AmazonS3] = new ConcurrentHashMap()
+
+  // Cache of Bucket Name => true/false (requires Server Side Encryption or not)
+  private val bucketRequiresSSE: ConcurrentHashMap[String,Boolean] = new ConcurrentHashMap()
+
+  def isReachable(url: URL): Boolean = getURLInfo(url).isReachable
+  def isReachable(url: URL, timeout: Int): Boolean = getURLInfo(url, timeout).isReachable
+  def getContentLength(url: URL): Long = getURLInfo(url).getContentLength
+  def getContentLength(url: URL, timeout: Int): Long = getURLInfo(url, timeout).getContentLength
+  def getLastModified(url: URL): Long = getURLInfo(url).getLastModified
+  def getLastModified(url: URL, timeout: Int): Long = getURLInfo(url, timeout).getLastModified
+  def getURLInfo(url: URL): URLInfo = getURLInfo(url, 0)
+
+  private def debug(msg: String): Unit = Message.debug("S3URLHandler."+msg)
 
   def getCredentialsProvider(bucket: String): AWSCredentialsProvider = {
     Message.info("S3URLHandler - Looking up AWS Credentials for bucket: "+bucket+" ...")
 
     val credentialsProvider: AWSCredentialsProvider = try {
-      makeCredentialsProviderChain(bucket)
+      getBucketCredentialsProvider(bucket)
     } catch {
       case ex: com.amazonaws.AmazonClientException =>
         Message.error("Unable to find AWS Credentials.")
