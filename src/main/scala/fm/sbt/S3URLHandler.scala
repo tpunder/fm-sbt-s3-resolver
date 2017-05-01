@@ -384,16 +384,12 @@ final class S3URLHandler extends URLHandler {
   def getRegion(url: URL, bucket: String, client: => AmazonS3): Regions = {
     val region: Option[String] = getRegionNameFromURL(url)
       .orElse(getRegionNameFromDNS(bucket))
+      .orElse(getRegionNameFromService(bucket, client))
       .orElse(Option(Regions.getCurrentRegion).map(_.getName))
-      .orElse(getBucketLocation(bucket, client))
 
     region.map(Regions.fromName).flatMap(Option(_)).getOrElse(Regions.DEFAULT_REGION)
   }
 
-  def getBucketLocation(bucket: String, client: => AmazonS3): Option[String] = {
-    Try(client.getBucketLocation(bucket)).toOption
-  }
-  
   def getRegionNameFromURL(url: URL): Option[String] = {
     // We'll try the AmazonS3URI parsing first then fallback to our RegionMatcher
     getAmazonS3URI(url).map(_.getRegion).flatMap(Option(_)).orElse(RegionMatcher.findFirstIn(url.toString))
@@ -408,12 +404,11 @@ final class S3URLHandler extends URLHandler {
     RegionMatcher.findFirstIn(canonicalHostName)
   }
 
-  // Not used anymore since the AmazonS3ClientBuilder requires the region during construction
-//  def getRegionNameFromService(bucket: String, client: AmazonS3): Option[String] = {
-//    // This might fail if the current credentials don't have access to the getBucketLocation call
-//    Try { client.getBucketLocation(bucket) }.toOption
-//  }
-  
+  def getRegionNameFromService(bucket: String, client: AmazonS3): Option[String] = {
+    // This might fail if the current credentials don't have access to the getBucketLocation call
+    Try { client.getBucketLocation(bucket) }.toOption
+  }
+
   def getBucketAndKey(url: URL): (String, String) = {
     // The AmazonS3URI constructor should work for standard S3 urls.  But if a custom domain is being used
     // (e.g. snapshots.maven.frugalmechanic.com) then we treat the hostname as the bucket and the path as the key
