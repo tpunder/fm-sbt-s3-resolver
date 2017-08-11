@@ -2,8 +2,6 @@ name := "fm-sbt-s3-resolver"
 
 organization := "com.frugalmechanic"
 
-version := "0.12.0-SNAPSHOT"
-
 description := "SBT S3 Resolver Plugin"
 
 licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"))
@@ -40,6 +38,9 @@ libraryDependencies ++= Seq(
   "org.apache.ivy" % "ivy" % "2.3.0"
 )
 
+// Tell the sbt-release plugin to use publishSigned
+releasePublishArtifactsAction := PgpKeys.publishSigned.value
+
 publishMavenStyle := true
 
 publishTo <<= version { (v: String) =>
@@ -49,6 +50,25 @@ publishTo <<= version { (v: String) =>
   else
     Some("releases"  at nexus + "service/local/staging/deploy/maven2")
 }
+
+// From: https://github.com/xerial/sbt-sonatype#using-with-sbt-release-plugin
+import ReleaseTransformations._
+
+// From: https://github.com/xerial/sbt-sonatype#using-with-sbt-release-plugin
+releaseProcess := Seq[ReleaseStep](
+  checkSnapshotDependencies,
+  inquireVersions,
+  runClean,
+  runTest,
+  setReleaseVersion,
+  commitReleaseVersion,
+  tagRelease,
+  releaseStepCommand("publishSigned"),
+  setNextVersion,
+  commitNextVersion,
+  releaseStepCommand("sonatypeReleaseAll"),
+  pushChanges
+)
 
 publishArtifact in Test := false
 
