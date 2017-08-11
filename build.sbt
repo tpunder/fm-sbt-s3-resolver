@@ -20,15 +20,13 @@ scalacOptions := Seq(
   "-Ywarn-unused-import"
 ) else Nil) ++ (if (scalaVersion.value.startsWith("2.12")) Seq(
   // Scala 2.12 specific compiler flags
-  "-opt:l:project"
+  "-opt:l:method,inline",
+  "-opt-inline-from:scala.Predef$:<sources>",
 ) else Nil)
 
 sbtPlugin := true
 
-EclipseKeys.withSource := true
-
-// Don't use the default "target" directory (which is what SBT uses)
-EclipseKeys.eclipseOutput := Some(".target")
+crossSbtVersions := Vector("0.13.16", "1.0.0")
 
 val amazonSDKVersion = "1.11.125"
 
