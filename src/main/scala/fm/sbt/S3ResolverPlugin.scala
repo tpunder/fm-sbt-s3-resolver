@@ -16,13 +16,10 @@
 package fm.sbt
 
 import sbt._
-import Keys._
 
-import java.io.{ByteArrayOutputStream, InputStream}
 import java.net.{URL, URLStreamHandler, URLStreamHandlerFactory}
 import org.apache.ivy.util.Message
 import org.apache.ivy.util.url.{URLHandlerDispatcher, URLHandlerRegistry}
-import scala.annotation.tailrec
 
 /**
  * All this does is register the s3:// url handler with the JVM and IVY
