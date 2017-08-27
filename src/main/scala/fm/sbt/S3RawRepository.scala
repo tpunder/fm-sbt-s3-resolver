@@ -16,15 +16,15 @@
 package fm.sbt
 
 import java.util.{Collections, List}
-import sbt.{RawRepository, Resolver}
+import sbt.Resolver
 
 final class S3RawRepository(val name: String) extends AnyVal {
   def atS3(location: String): Resolver = {
     require(null != location && location != "", "Empty Location!")
     val pattern: List[String] = Collections.singletonList(resolvePattern(location, Resolver.mavenStyleBasePattern))
-    new RawRepository(new S3URLResolver(name, location, pattern))
+    CrossSbtUtils.rawRepository(new S3URLResolver(name, location, pattern), name)
   }
-  
+
   private def resolvePattern(base: String, pattern: String): String = {
     val normBase = base.replace('\\', '/')
     if(normBase.endsWith("/") || pattern.startsWith("/")) normBase + pattern else normBase + "/" + pattern
