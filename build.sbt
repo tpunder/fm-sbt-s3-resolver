@@ -2,7 +2,7 @@ name := "fm-sbt-s3-resolver"
 
 organization := "com.frugalmechanic"
 
-version := "0.12.0-SNAPSHOT"
+version := "0.12.1-SNAPSHOT"
 
 description := "SBT S3 Resolver Plugin"
 
@@ -32,19 +32,19 @@ EclipseKeys.withSource := true
 // Don't use the default "target" directory (which is what SBT uses)
 EclipseKeys.eclipseOutput := Some(".target")
 
-val amazonSDKVersion = "1.11.117"
+val amazonSDKVersion = "1.11.185"
 
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
   "com.amazonaws" % "aws-java-sdk-sts" % amazonSDKVersion,
-  "org.apache.ivy" % "ivy" % "2.3.0"
+  "org.apache.ivy" % "ivy" % "2.4.0"
 )
 
 publishMavenStyle := true
 
-publishTo <<= version { (v: String) =>
+publishTo := {
   val nexus = "https://oss.sonatype.org/"
-  if (v.trim.endsWith("SNAPSHOT")) 
+  if (isSnapshot.value)
     Some("snapshots" at nexus + "content/repositories/snapshots") 
   else
     Some("releases"  at nexus + "service/local/staging/deploy/maven2")
