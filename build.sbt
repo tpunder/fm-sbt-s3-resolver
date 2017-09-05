@@ -26,7 +26,7 @@ scalacOptions := Seq(
 
 sbtPlugin := true
 
-crossSbtVersions := Vector("0.13.16", "1.0.0")
+crossSbtVersions := Vector("0.13.16", "1.0.1")
 
 val amazonSDKVersion = "1.11.125"
 
