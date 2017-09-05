@@ -345,7 +345,7 @@ final class S3URLHandler extends URLHandler {
     // Do we know for sure that this bucket requires SSE?
     val requiresSSE: Boolean = bucketRequiresSSE.containsKey(bucket)
 
-    val res: PutObjectResult = if (requiresSSE) {
+    if (requiresSSE) {
       // We know we require SSE
       putImpl(true)
     } else {
