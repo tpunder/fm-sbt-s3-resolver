@@ -1,5 +1,6 @@
 package fm.sbt.s3
 
+import com.amazonaws.AmazonServiceException
 import com.amazonaws.services.s3.model.{ObjectMetadata, S3Object}
 import fm.sbt.S3URLHandler
 import java.io.InputStream
@@ -36,16 +37,22 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
   def connect(): Unit = {
     val (client, bucket, key) = s3.getClientBucketAndKey(url)
 
-    response = getRequestMethod.toLowerCase match {
-      case "head" => Option(HEADResponse(client.getObjectMetadata(bucket, key)))
-      case "get" => Option(GETResponse(client.getObject(bucket, key)))
-      case "post" => ???
-      case "put" => ???
-      case _ => throw new IllegalArgumentException("Invalid request method: "+getRequestMethod)
+    try {
+      response = getRequestMethod.toLowerCase match {
+        case "head" => Option(HEADResponse(client.getObjectMetadata(bucket, key)))
+        case "get" => Option(GETResponse(client.getObject(bucket, key)))
+        case "post" => ???
+        case "put" => ???
+        case _ => throw new IllegalArgumentException("Invalid request method: "+getRequestMethod)
+      }
+
+      responseCode = if (response.isEmpty) 404 else 200
+    } catch {
+      case ex: AmazonServiceException => responseCode = ex.getStatusCode
     }
 
-    responseCode = if (response.isEmpty) 404 else 200
-
+    // Also set the responseMessage (an HttpURLConnection field) for better compatibility
+    responseMessage = statusMessageForCode(responseCode)
     connected = true
   }
 
@@ -54,6 +61,16 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
   override def getInputStream: InputStream = {
     if (!connected) connect()
     response.flatMap{ _.inputStream }.orNull
+  }
+
+  override def getHeaderField(n: Int): String = {
+    // n == 0 means you want the HTTP Status Line
+    // This is called from HttpURLConnection.getResponseCode()
+    if (n == 0 && responseCode != -1) {
+      s"HTTP/1.0 $responseCode ${statusMessageForCode(responseCode)}"
+    } else {
+      super.getHeaderField(n)
+    }
   }
 
   override def getHeaderField(field: String): String = {
@@ -70,5 +87,14 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
 
   override def disconnect(): Unit = {
     response.foreach{ _.close() }
+  }
+
+  private def statusMessageForCode(code: Int): String = {
+    // I'm not sure if we care about any codes besides 200 and 404
+    code match {
+      case 200 => "OK"
+      case 404 => "Not Found"
+      case _   => "DUMMY"
+    }
   }
 }
