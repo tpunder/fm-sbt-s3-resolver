@@ -251,6 +251,7 @@ final class S3URLHandler extends URLHandler {
       client = AmazonS3Client.builder()
         .withCredentials(getCredentialsProvider(bucket))
         .withClientConfiguration(getProxyConfiguration)
+        .withForceGlobalBucketAccessEnabled(true)
         .withRegion(getRegion(url, bucket))
         .build()
 
