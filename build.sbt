@@ -28,7 +28,7 @@ sbtPlugin := true
 
 crossSbtVersions := Vector("0.13.16", "1.0.4")
 
-val amazonSDKVersion = "1.11.125"
+val amazonSDKVersion = "1.11.236"
 
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
