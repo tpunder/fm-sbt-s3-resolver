@@ -30,6 +30,7 @@ import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRole
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
 import scala.collection.JavaConverters._
+import scala.util.Try
 import scala.util.matching.Regex
 
 object S3URLHandler {
@@ -376,11 +377,20 @@ final class S3URLHandler extends URLHandler {
   
   // Try to get the region of the S3 URL so we can set it on the S3Client
   def getRegion(url: URL, bucket: String/*, client: AmazonS3*/): Regions = {
-    val region: Option[String] = getRegionNameFromURL(url) orElse getRegionNameFromDNS(bucket) orElse Option(Regions.getCurrentRegion()).map{ _.getName }
-
-    region.map{ Regions.fromName }.flatMap{ Option(_) } getOrElse Regions.DEFAULT_REGION
+    getRegionNameFromURL(url).toOptionalRegion orElse
+      getRegionNameFromDNS(bucket).toOptionalRegion orElse
+      Option(Regions.getCurrentRegion()).map{ _.getName }.toOptionalRegion getOrElse
+      Regions.DEFAULT_REGION
   }
-  
+
+  private implicit class RichStringOption(s: Option[String]) {
+    def toOptionalRegion: Option[Regions] = s.flatMap{ _.toOptionalRegion }
+  }
+
+  private implicit class RichString(s: String) {
+    def toOptionalRegion: Option[Regions] = Try{ Regions.fromName(s) }.toOption
+  }
+
   def getRegionNameFromURL(url: URL): Option[String] = {
     // We'll try the AmazonS3URI parsing first then fallback to our RegionMatcher
     getAmazonS3URI(url).map{ _.getRegion }.flatMap{ Option(_) } orElse RegionMatcher.findFirstIn(url.toString)
