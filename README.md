@@ -22,6 +22,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
     - [Environment Variables](#environment-variables)
     - [Java System Properties](#java-system-properties)
     - [Property File](#property-file)
+  - [Custom S3 Credentials](#custom-s3-credentials)
 - [IAM Policy Examples](#iam-policy-examples)
   - [Read/Write Policy (for publishing)](#readwrite-policy-for-publishing)
   - [Read-Only Policy](#read-only-policy)
@@ -96,12 +97,14 @@ All of these forms should work:
 ### Add this to your project/plugins.sbt file:
 
 ```scala
-addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.12.0")
+addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.13.0")
 ```
 
 ### S3 Credentials
 
 S3 Credentials are checked **in the following places and _order_** (e.g. bucket specific settings (\~/.sbt/.&lt;bucket_name&gt;_s3credentials) get resolved before global settings (\~/.sbt/.s3credentials)):
+
+**Note: I think this logic has changed a little bit.  See the S3URLHandler.defaultCredentialsProviderChain for the current implementation: https://github.com/frugalmechanic/fm-sbt-s3-resolver/blob/master/src/main/scala/fm/sbt/S3URLHandler.scala#L166**
 
 #### Bucket Specific Environment Variables
 
@@ -190,6 +193,32 @@ accessKey = XXXXXXXXXX
 secretKey = XXXXXXXXXX
 // Optional IAM Role
 roleArn = arn:aws:iam::123456789012:role/RoleName
+```
+
+### Custom S3 Credentials
+
+If the default credential providers do not work for you then you can specify your own AWSCredentialsProvider using the `S3CredentialsProvider` SettingKey:
+
+```scala
+import com.amazonaws.auth.{AWSCredentialsProviderChain, DefaultAWSCredentialsProviderChain}
+import com.amazonaws.auth.profile.ProfileCredentialsProvider
+
+S3CredentialsProvider := { (bucket: String) =>
+  new AWSCredentialsProviderChain(
+    new ProfileCredentialsProvider("my_profile"),
+    DefaultAWSCredentialsProviderChain.getInstance()
+  )
+}
+```
+
+If you are really lazy and want to provide static credentials something like this should work:
+
+```scala
+import com.amazonaws.auth.{AWSStaticCredentialsProvider, BasicAWSCredentials}
+
+S3CredentialsProvider := { (bucket: String) =>
+  new AWSStaticCredentialsProvider(new BasicAWSCredentials("your_accessKey", "your_secretKey"))
+}
 ```
 
 ## IAM Policy Examples
