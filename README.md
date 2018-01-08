@@ -35,6 +35,14 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
+## SBT 1.1 Support
+
+SBT 1.1 support is available using version `0.14.0`:
+
+```scala
+addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.14.0")
+```
+
 ## SBT 1.0 Support
 
 Note: **You need to use at least SBT 1.0.4** for this plugin to work with SBT 1.0 due to 
