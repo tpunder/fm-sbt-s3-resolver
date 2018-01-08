@@ -97,7 +97,7 @@ All of these forms should work:
 ### Add this to your project/plugins.sbt file:
 
 ```scala
-addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.13.0")
+addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.14.0")
 ```
 
 ### S3 Credentials
