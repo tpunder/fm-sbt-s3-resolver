@@ -8,6 +8,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
+- [SBT 1.1 Support](#sbt-11-support)
 - [SBT 1.0 Support](#sbt-10-support)
 - [Examples](#examples)
   - [Resolving Dependencies via S3](#resolving-dependencies-via-s3)
