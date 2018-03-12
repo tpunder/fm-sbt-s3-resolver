@@ -278,6 +278,15 @@ final class S3URLHandler extends URLHandler {
   } catch {
     case ex: AmazonS3Exception if ex.getStatusCode == 404 => UNAVAILABLE
     case ex: java.net.URISyntaxException                  =>
+      // We can hit this when given a URL that looks like:
+      //   s3://maven.custom/releases/javax/ws/rs/javax.ws.rs-api/2.1/javax.ws.rs-api-2.1.${packaging.type}
+      //
+      // In that case we just ignore it and treat it as a 404.  It looks like this is really a bug in IVY that has
+      // recently been fixed (as of 2018-03-12): https://issues.apache.org/jira/browse/IVY-1577
+      //
+      // Original Bug: https://github.com/frugalmechanic/fm-sbt-s3-resolver/issues/45
+      // Original PR:  https://github.com/frugalmechanic/fm-sbt-s3-resolver/pull/46
+      //
       Message.warn("S3URLHandler - " + ex.getMessage)
 
       UNAVAILABLE
