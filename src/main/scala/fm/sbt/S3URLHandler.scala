@@ -277,6 +277,10 @@ final class S3URLHandler extends URLHandler {
     new S3URLInfo(available, contentLength, lastModified)
   } catch {
     case ex: AmazonS3Exception if ex.getStatusCode == 404 => UNAVAILABLE
+    case ex: java.net.URISyntaxException                  =>
+      Message.warn("S3URLHandler - " + ex.getMessage)
+
+      UNAVAILABLE
   }
   
   def openStream(url: URL): InputStream = {
