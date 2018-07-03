@@ -82,6 +82,7 @@ object S3ResolverPlugin extends AutoPlugin {
     },
     onLoad in Global := (onLoad in Global).value andThen { state =>
       def info: String => Unit = state.log.info(_)
+      def debug: String => Unit = state.log.debug(_)
 
       // We need s3:// URLs to work without throwing a java.net.MalformedURLException
       // which means installing a dummy URLStreamHandler.  We only install the handler
@@ -89,7 +90,7 @@ object S3ResolverPlugin extends AutoPlugin {
       // will fail).
       try {
         new URL("s3://example.com")
-        info("The s3:// URLStreamHandler is already installed")
+        debug("The s3:// URLStreamHandler is already installed")
       } catch {
         // This means we haven't installed the handler, so install it
         case _: java.net.MalformedURLException =>
@@ -103,7 +104,7 @@ object S3ResolverPlugin extends AutoPlugin {
       val dispatcher: URLHandlerDispatcher = URLHandlerRegistry.getDefault match {
         // If the default is already a URLHandlerDispatcher then just use that
         case disp: URLHandlerDispatcher =>
-          info("Using the existing Ivy URLHandlerDispatcher to handle s3:// URLs")
+          debug("Using the existing Ivy URLHandlerDispatcher to handle s3:// URLs")
           disp
         // Otherwise create a new URLHandlerDispatcher
         case default =>
