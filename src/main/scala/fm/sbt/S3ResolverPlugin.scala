@@ -120,7 +120,7 @@ object S3ResolverPlugin extends AutoPlugin {
 
       val extracted: Extracted = Project.extract(state)
 
-      S3URLHandler.registerBucketCredentialsProvider(extracted.get(s3CredentialsProvider))
+      S3URLHandler.registerBucketCredentialsProvider(extracted.getOpt(s3CredentialsProvider).getOrElse(S3URLHandler.defaultCredentialsProviderChain))
 
       state
     }
