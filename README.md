@@ -79,7 +79,7 @@ Ivy Style:
 
 ```scala
 publishMavenStyle := false
-publishTo := Some("FrugalMechanic Snapshots" at "s3://maven.frugalmechanic.com/snapshots")
+publishTo := Some(Resolver.url("FrugalMechanic Snapshots", url("s3://maven.frugalmechanic.com/snapshots"))(Resolver.ivyStylePatterns))
 ```
 
 ### Valid s3:// URL Formats
