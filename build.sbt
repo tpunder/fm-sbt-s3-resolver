@@ -20,8 +20,9 @@ scalacOptions := Seq(
   "-Ywarn-unused-import"
 ) else Nil) ++ (if (scalaVersion.value.startsWith("2.12")) Seq(
   // Scala 2.12 specific compiler flags
-  "-opt:l:inline",
-  "-opt-inline-from:<sources>",
+  // NOTE: These are currently broken on Scala <= 2.12.6 when using Java 9+ (will hopefully be fixed in 2.12.7)
+  //"-opt:l:inline",
+  //"-opt-inline-from:<sources>",
 ) else Nil)
 
 sbtPlugin := true
