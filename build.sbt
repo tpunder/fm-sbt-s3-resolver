@@ -38,7 +38,10 @@ val amazonSDKVersion = "1.11.416"
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
   "com.amazonaws" % "aws-java-sdk-sts" % amazonSDKVersion,
-  "org.apache.ivy" % "ivy" % "2.4.0"
+  "org.apache.ivy" % "ivy" % "2.4.0",
+  "javax.xml.bind"      %  "jaxb-api"               % "2.3.0",
+  "org.glassfish.jaxb"  %  "jaxb-runtime"           % "2.3.0",
+  "javax.activation"    %  "activation"             % "1.1.1"
 )
 
 // Tell the sbt-release plugin to use publishSigned
