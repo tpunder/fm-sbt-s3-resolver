@@ -33,11 +33,13 @@ import scala.collection.JavaConverters._
 import scala.util.Try
 import scala.util.matching.Regex
 
-object S3URLHandler {
+object S3URLHandler extends S3URLHandlerObj
+
+trait S3URLHandlerObj { self: S3URLHandlerObj =>
   private val DOT_SBT_DIR: File = new File(System.getProperty("user.home"), ".sbt")
 
   // This is for matching region names in URLs or host names
-  private val RegionMatcher: Regex = Regions.values().map{ _.getName }.sortBy{ -1 * _.length }.mkString("|").r
+  protected [sbt] val RegionMatcher: Regex = Regions.values().map{ _.getName }.sortBy{ -1 * _.length }.mkString("|").r
 
   private var bucketCredentialsProvider: String => AWSCredentialsProvider = makePropertiesFileCredentialsProvider
 
@@ -47,24 +49,24 @@ object S3URLHandler {
 
   def getBucketCredentialsProvider: String => AWSCredentialsProvider = bucketCredentialsProvider
 
-  private class S3URLInfo(available: Boolean, contentLength: Long, lastModified: Long) extends URLHandler.URLInfo(available, contentLength, lastModified)
-  
-  private class BucketSpecificSystemPropertiesCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
+  protected [sbt] class S3URLInfo(available: Boolean, contentLength: Long, lastModified: Long) extends URLHandler.URLInfo(available, contentLength, lastModified)
+
+  protected [sbt] class BucketSpecificSystemPropertiesCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
     
     def AccessKeyName: String = ACCESS_KEY_SYSTEM_PROPERTY
     def SecretKeyName: String = SECRET_KEY_SYSTEM_PROPERTY
 
     protected def getProp(names: String*): String = names.map{ System.getProperty }.flatMap{ Option(_) }.head.trim
   }
-  
-  private class BucketSpecificEnvironmentVariableCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
+
+  protected [sbt] class BucketSpecificEnvironmentVariableCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
     def AccessKeyName: String = ACCESS_KEY_ENV_VAR
     def SecretKeyName: String = SECRET_KEY_ENV_VAR
     
     protected def getProp(names: String*): String = names.map{ toEnvironmentVariableName }.map{ System.getenv }.flatMap{ Option(_) }.head.trim
   }
-  
-  private abstract class BucketSpecificCredentialsProvider(bucket: String) extends AWSCredentialsProvider {
+
+  protected [sbt] abstract class BucketSpecificCredentialsProvider(bucket: String) extends AWSCredentialsProvider {
     def AccessKeyName: String
     def SecretKeyName: String
     
@@ -194,8 +196,10 @@ object S3URLHandler {
 /**
  * This implements the Ivy URLHandler
  */
-final class S3URLHandler extends URLHandler {
-  import fm.sbt.S3URLHandler._
+final class S3URLHandler extends S3URLHandlerBase
+
+trait S3URLHandlerBase extends URLHandler {
+  import S3URLHandler._
   import org.apache.ivy.util.url.URLHandler.{UNAVAILABLE, URLInfo}
 
   // Cache of Bucket Name => AmazonS3 Client Instance
