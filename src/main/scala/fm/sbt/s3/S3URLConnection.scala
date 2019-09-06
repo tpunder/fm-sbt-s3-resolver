@@ -5,6 +5,8 @@ import com.amazonaws.services.s3.model.{ObjectMetadata, S3Object}
 import fm.sbt.S3URLHandler
 import java.io.InputStream
 import java.net.{HttpURLConnection, URL}
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 object S3URLConnection {
   private val s3: S3URLHandler = new S3URLHandler()
@@ -80,8 +82,8 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
       case "content-type" => response.map{ _.meta.getContentType }.orNull
       case "content-encoding" => response.map{ _.meta.getContentEncoding }.orNull
       case "content-length" => response.map{ _.meta.getContentLength().toString }.orNull
-      case "last-modified" => response.map{ _.meta.getLastModified.getTime.toString }.orNull
-      case _ => ""
+      case "last-modified" => response.map{ _.meta.getLastModified }.map{ _.toInstant.atOffset(ZoneOffset.UTC) }.map{ DateTimeFormatter.RFC_1123_DATE_TIME.format }.orNull
+      case _ => null // Should return null if no value for header
     }
   }
 
