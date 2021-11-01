@@ -42,7 +42,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 SBT 1.3 support is available using version `>= 0.19.0`:
 
 ```scala
-addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.19.0")
+addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.20.0")
 ```
 
 ## SBT 1.1 Support
@@ -111,7 +111,7 @@ All of these forms should work:
 ### Add this to your project/plugins.sbt file:
 
 ```scala
-addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.19.0")
+addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.20.0")
 ```
 
 ### S3 Credentials
