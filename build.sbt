@@ -6,7 +6,7 @@ description := "SBT S3 Resolver Plugin"
 
 licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"))
 
-homepage := Some(url("https://github.com/frugalmechanic/sbt-s3-resolver"))
+homepage := Some(url("https://github.com/tpunder/sbt-s3-resolver"))
 
 scalacOptions := Seq(
   "-encoding", "UTF-8",
@@ -83,14 +83,13 @@ pomExtra := (
     <developer>
       <id>tim</id>
       <name>Tim Underwood</name>
-      <email>tim@eluvio.com</email>
-      <organization>Eluvio</organization>
-      <organizationUrl>https://www.eluvio.com</organizationUrl>
+      <email>timunderwood@gmail.com</email>
+      <url>https://github.com/tpunder</url>
     </developer>
   </developers>
   <scm>
-      <connection>scm:git:git@github.com:frugalmechanic/sbt-s3-resolver.git</connection>
-      <developerConnection>scm:git:git@github.com:frugalmechanic/sbt-s3-resolver.git</developerConnection>
-      <url>git@github.com:frugalmechanic/sbt-s3-resolver.git</url>
+      <connection>scm:git:git@github.com:tpunder/sbt-s3-resolver.git</connection>
+      <developerConnection>scm:git:git@github.com:tpunder/sbt-s3-resolver.git</developerConnection>
+      <url>git@github.com:tpunder/sbt-s3-resolver.git</url>
   </scm>)
 
