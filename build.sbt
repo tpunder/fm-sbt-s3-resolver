@@ -29,9 +29,16 @@ sbtPlugin := true
 
 scriptedBufferLog := false
 
+// https://timushev.com/posts/2020/04/25/building-and-testing-sbt-plugins/
+// CI test sbt versions compatibility, but locally a single scripted command
+scriptedDependencies := Def.taskDyn {
+  if (insideCI.value) Def.task(())
+  else Def.task(()).dependsOn(publishLocal)
+}.value
+
 scriptedLaunchOpts ++= Seq("-Xmx1024M", "-Dplugin.version=" + version.value)
 
-crossSbtVersions := Vector("0.13.16", "1.1.0")
+crossSbtVersions := Vector("1.1.6", "0.13.18")
 
 val amazonSDKVersion = "1.12.99"
 

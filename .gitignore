@@ -6,6 +6,8 @@ target
 .project
 .settings
 .worksheet
+.bloop
+.bsp
 .idea
 .idea_modules
 .cache-main
