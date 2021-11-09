@@ -25,13 +25,17 @@ scalacOptions := Seq(
   //"-opt-inline-from:<sources>",
 ) else Nil)
 
-sbtPlugin := true
+enablePlugins(SbtPlugin)
 
-scriptedBufferLog := false
+crossSbtVersions := Vector("0.13.18", "1.2.8")
 
-scriptedLaunchOpts ++= Seq("-Xmx1024M", "-Dplugin.version=" + version.value)
-
-crossSbtVersions := Vector("0.13.16", "1.1.0")
+// Compile with scala 2.12.15 to ensure compatibility with sbt 1.6.x
+scalaVersion := {
+  sbtBinaryVersion.value match {
+    case "0.13" => "2.10.7"
+    case "1.0"  => "2.12.15"
+  }
+}
 
 val amazonSDKVersion = "1.12.99"
 

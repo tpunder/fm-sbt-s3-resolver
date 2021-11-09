@@ -1,6 +1,6 @@
 # Frugal Mechanic SBT S3 Resolver
 
-[![Build Status](https://app.travis-ci.com/tpunder/fm-sbt-s3-resolver.svg?branch=master)](https://app.travis-ci.com/github/tpunder/fm-sbt-s3-resolver)
+[![License](http://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html) [![CI](https://github.com/tpunder/fm-sbt-s3-resolver/actions/workflows/ci.yml/badge.svg)](https://github.com/tpunder/fm-sbt-s3-resolver/actions/workflows/ci.yml)
 
 This SBT plugin adds support for using Amazon S3 for resolving and publishing using s3:// urls.
 
