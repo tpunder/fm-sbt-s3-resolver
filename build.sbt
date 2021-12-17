@@ -40,12 +40,13 @@ scriptedLaunchOpts ++= Seq("-Xmx1024M", "-Dplugin.version=" + version.value)
 
 crossSbtVersions := Vector("0.13.18", "1.1.6")
 
-val amazonSDKVersion = "1.12.99"
+val amazonSDKVersion = "1.12.129"
 
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
   "com.amazonaws" % "aws-java-sdk-sts" % amazonSDKVersion,
-  "org.apache.ivy" % "ivy" % "2.4.0"
+  "org.apache.ivy" % "ivy" % "2.4.0",
+  "org.scalatest" %% "scalatest" % "3.2.10" % Test
 )
 
 // Tell the sbt-release plugin to use publishSigned
