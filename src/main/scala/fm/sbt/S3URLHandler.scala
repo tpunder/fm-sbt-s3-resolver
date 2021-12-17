@@ -34,7 +34,10 @@ import scala.util.Try
 import scala.util.matching.Regex
 
 object S3URLHandler {
-  private val DOT_SBT_DIR: File = new File(System.getProperty("user.home"), ".sbt")
+  private val DOT_SBT_DIR: File = {
+    val dir = sys.props.getOrElse("sbt.global.base", sys.props("user.home"))
+    new File(dir, ".sbt")
+  }
 
   // This is for matching region names in URLs or host names
   private val RegionMatcher: Regex = Regions.values().map{ _.getName }.sortBy{ -1 * _.length }.mkString("|").r
