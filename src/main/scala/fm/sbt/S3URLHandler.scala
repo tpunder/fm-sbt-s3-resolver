@@ -29,6 +29,10 @@ import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurit
 import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
+
+import javax.naming.{Context, NamingException}
+import javax.naming.directory.InitialDirContext
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.util.Try
 import scala.util.matching.Regex
@@ -188,6 +192,38 @@ object S3URLHandler {
     )
 
     new AWSCredentialsProviderChain((roleBasedProviders ++ basicProviders): _*)
+  }
+
+  def getRegionNameFromDNS(bucket: String): Option[String] = {
+    // maven.custom.s3.amazonaws.com. 21600 IN	CNAME	s3-1-w.amazonaws.com.
+    //           s3-1-w.amazonaws.com.	39	IN	CNAME	s3-w.us-east-1.amazonaws.com.
+    getDNSAliases(bucket).flatMap { RegionMatcher.findFirstIn(_) }.headOption
+  }
+
+  private[this] val dnsContext: InitialDirContext = {
+    val env: Properties = new Properties()
+    env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.dns.DnsContextFactory")
+    new InitialDirContext(env)
+  }
+
+  private def getDNSAliases(bucket: String): Seq[String] = {
+    val bucketHostname = bucket + ".s3.amazonaws.com"
+
+    @tailrec def impl(host: String, matches: Seq[String]): Seq[String] = {
+      val cname: Option[String] = try {
+        val attrs = dnsContext.getAttributes(host, Array("CNAME"))
+        Option(attrs.get("CNAME"))
+          .flatMap{ attr => Option(attr.get) }
+          .collectFirst { case host: String => host }
+      } catch {
+        case _: NamingException => None
+      }
+
+      if (cname.isEmpty || cname.exists{ matches.contains(_) }) matches
+      else impl(cname.get, cname.get +: matches)
+    }
+
+    impl(bucketHostname, Nil)
   }
 }
 
@@ -409,15 +445,7 @@ final class S3URLHandler extends URLHandler {
     // We'll try the AmazonS3URI parsing first then fallback to our RegionMatcher
     getAmazonS3URI(url).map{ _.getRegion }.flatMap{ Option(_) } orElse RegionMatcher.findFirstIn(url.toString)
   }
-  
-  def getRegionNameFromDNS(bucket: String): Option[String] = {
-    // This gives us something like s3-us-west-2-w.amazonaws.com which must have changed
-    // at some point because the region from that hostname is no longer parsed by AmazonS3URI
-    val canonicalHostName: String = InetAddress.getByName(bucket+".s3.amazonaws.com").getCanonicalHostName()
-    
-    // So we use our regex based RegionMatcher to try and extract the region since AmazonS3URI doesn't work
-    RegionMatcher.findFirstIn(canonicalHostName)
-  }
+
 
   // Not used anymore since the AmazonS3ClientBuilder requires the region during construction
 //  def getRegionNameFromService(bucket: String, client: AmazonS3): Option[String] = {
