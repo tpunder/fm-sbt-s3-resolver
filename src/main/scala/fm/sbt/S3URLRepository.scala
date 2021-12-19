@@ -23,7 +23,7 @@ import scala.collection.JavaConverters._
 final class S3URLRepository extends URLRepository {
   private[this] val s3: S3URLHandler = new S3URLHandler()
   
-  override def list(parent: String): List[_] = {
+  override def list(parent: String): List[String] = {
     if (parent.startsWith("s3")) {
       s3.list(new URL(parent)).map{ _.toExternalForm }.asJava
     } else {
