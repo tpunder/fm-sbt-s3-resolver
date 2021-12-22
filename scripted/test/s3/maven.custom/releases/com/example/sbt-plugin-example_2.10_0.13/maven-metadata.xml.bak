@@ -1,0 +1,12 @@
+<metadata modelVersion="1.1.0">
+  <groupId>com.example</groupId>
+  <artifactId>sbt-plugin-example_2.12_1.0</artifactId>
+  <versioning>
+    <latest>0.1.0</latest>
+    <release>0.1.0</release>
+    <versions>
+      <version>0.1.0</version>
+    </versions>
+    <lastUpdated>20210405041319</lastUpdated>
+  </versioning>
+</metadata>

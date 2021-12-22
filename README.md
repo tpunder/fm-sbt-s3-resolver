@@ -1,48 +1,28 @@
-# Frugal Mechanic SBT S3 Resolver
+# SBT S3 Resolver
 
-[![Build Status](https://app.travis-ci.com/tpunder/fm-sbt-s3-resolver.svg?branch=master)](https://app.travis-ci.com/github/tpunder/fm-sbt-s3-resolver)
+[![License](http://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html) [![CI](https://github.com/tpunder/fm-sbt-s3-resolver/actions/workflows/ci.yml/badge.svg)](https://github.com/tpunder/fm-sbt-s3-resolver/actions/workflows/ci.yml)
 
 This SBT plugin adds support for using Amazon S3 for resolving and publishing using s3:// urls.
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+## Coursier Protocol Handler
 
-- [SBT 1.3 Support](#sbt-13-support)
-- [SBT 1.1 Support](#sbt-11-support)
-- [SBT 1.0 Support](#sbt-10-support)
-- [Examples](#examples)
-  - [Resolving Dependencies via S3](#resolving-dependencies-via-s3)
-  - [Publishing to S3](#publishing-to-s3)
-  - [Valid s3:// URL Formats](#valid-s3-url-formats)
-- [Usage](#usage)
-  - [Add this to your project/plugins.sbt file:](#add-this-to-your-projectpluginssbt-file)
-  - [S3 Credentials](#s3-credentials)
-    - [Bucket Specific Environment Variables](#bucket-specific-environment-variables)
-    - [Bucket Specific Java System Properties](#bucket-specific-java-system-properties)
-    - [Bucket Specific Property Files](#bucket-specific-property-files)
-    - [Environment Variables](#environment-variables)
-    - [Java System Properties](#java-system-properties)
-    - [Property File](#property-file)
-  - [Custom S3 Credentials](#custom-s3-credentials)
-- [IAM Policy Examples](#iam-policy-examples)
-  - [Read/Write Policy (for publishing)](#readwrite-policy-for-publishing)
-  - [Read-Only Policy](#read-only-policy)
-  - [Releases Read-Only, Snapshots Read/Write](#releases-read-only-snapshots-readwrite)
-- [IAM Role Policy Examples](#iam-role-policy-examples)
-- [S3 Server-Side Encryption](#s3-server-side-encryption)
-- [Authors](#authors)
-- [Copyright](#copyright)
-- [License](#license)
+[Coursier Custom Protocols](https://github.com/coursier/coursier/blob/master/doc/docs/extra.md#extra-protocols) is implemented in [coursier.cache.protocol.S3Handler](coursier-handler/src/main/scala/coursier/cache/protocol/S3Handler.scala)
 
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+Starting in [lm-coursier 2.0.10](https://github.com/coursier/sbt-coursier/commit/92e40c22256bea44d1e1befbef1cb2a627f8b155) and sbt `1.6.+`, additional sbt configuration is also available (and configured by the [S3ResolverPlugin](plugin/src/main/scala-2.12/fm/sbt/S3ResolverPluginCompat.scala) to explicitly include Protocol Handler Dependencies in the coursier `ClassLoader`.
+
+```scala
+csrConfiguration := {
+  val s3Plugin = "com.frugalmechanic" %% "fm-sbt-s3-resolver-coursier-handler" % "<version>"
+  csrConfiguration.value.withProtocolHandlerDependencies(Seq(s3Plugin))
+}
+```
 
 ## SBT 1.3 Support
 
 SBT 1.3 support is available using version `>= 0.19.0`:
 
 ```scala
-addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.20.0")
+addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "<version>")
 ```
 
 ## SBT 1.1 Support
@@ -111,7 +91,7 @@ All of these forms should work:
 ### Add this to your project/plugins.sbt file:
 
 ```scala
-addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "0.20.0")
+addSbtPlugin("com.frugalmechanic" % "fm-sbt-s3-resolver" % "<version>")
 ```
 
 ### S3 Credentials
@@ -398,9 +378,11 @@ Example:
 
 Tim Underwood (<a href="https://github.com/tpunder" rel="author">GitHub</a>, <a href="https://www.linkedin.com/in/tpunder" rel="author">LinkedIn</a>, <a href="https://twitter.com/tpunder" rel="author">Twitter</a>)
 
+Eric Peters (<a href="https://github.com/er1c" rel="author">GitHub</a>, <a href="https://www.linkedin.com/in/egpeters" rel="author">LinkedIn</a>, <a href="https://twitter.com/ericpeters" rel="author">Twitter</a>)
+
 ## Copyright
 
-Copyright [Frugal Mechanic](http://frugalmechanic.com)
+Copyright 2019 [Frugal Mechanic](http://frugalmechanic.com). Copyright 2021 the fm-sbt-s3-resolver contributors.
 
 ## License
 

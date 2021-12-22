@@ -1,4 +1,0 @@
-> mavenStyle/check
-# GitHub doesn't support ivyStyle
-#> ivyStyle/check
-> clean
