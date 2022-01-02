@@ -6,37 +6,54 @@ on:
     - cron: '0 21 * * 0'
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  build:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - java: 11
-          - java: 8
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        java: [8, 11]
+    runs-on: ${{ matrix.os }}
     env:
       # define Java options for both official sbt and sbt-extras
       JAVA_OPTS:   -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
       JVM_OPTS:    -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
-      DOCKER_HOST: unix:///var/run/docker.sock
     steps:
-      - uses: actions/checkout@v2
-      - uses: olafurpg/setup-scala@v10
+      - name: Ignore line ending differences in git
+        if: contains(runner.os, 'windows')
+        shell: bash
+        run: git config --global core.autocrlf false
+
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v2
         with:
-          java-version: "adopt@1.${{ matrix.java }}"
+          fetch-depth: 0
+
+      - name: Setup Java and Scala
+        uses: olafurpg/setup-scala@v13
+        with:
+          java-version: ${{ matrix.java }}
+
       - uses: coursier/cache-action@v5
-#      - env:
-#          AWS_ACCESS_KEY_ID: ${secrets.AWS_ACCESS_KEY_ID}
-#          AWS_SECRET_KEY: ${secrets.AWS_SECRET_KEY}
-#        shell: bash
-#        run: |
-#          mkdir ~/.sbt || true && echo "
-#          accessKey = $AWS_ACCESS_KEY_ID
-#          secretKey = $AWS_SECRET_KEY
-#          " >> ~/.sbt/.s3credentials_maven.custom
-      - name: Build and test
+
+      - name: Setup AWS Credentials
+        shell: bash
+        run: |
+          mkdir ~/.sbt || true && echo "
+          accessKey = test
+          secretKey = test
+          " >> ~/.sbt/.s3credentials_maven.custom
+
+      - name: Build, test, and publishLocal
+        shell: bash
         run: |
           sbt -v clean +test +publishLocal
+      - name: Scripted Tests
+        # Docker isn't installed on OSX runner - windows tbd  || contains(runner.os, 'windows') }
+        if: ${{ contains(runner.os, 'linux') }}
+        shell: bash
+        run: |
+          export DOCKER_HOST=$(docker context inspect --format '{{.Endpoints.docker.Host}}')
+          # Ensure scripted tests run independent of +publishLocal 
           pushd scripted
           sbt -v ++2.10.7 ^^0.13.18 scripted
           sbt -v ++2.12.15 \
@@ -47,6 +64,9 @@ jobs:
             ^^1.5.8 scripted \
             ^^1.6.1 scripted
           popd
+      - name: Cleanup caches
+        shell: bash
+        run: |
           rm -rf "$HOME/.ivy2/local" || true
           rm -rf "$HOME/.ivy2/cache/com.frugalmechanic" || true
           find $HOME/Library/Caches/Coursier/v1        -name "ivydata-*.properties" -delete || true
