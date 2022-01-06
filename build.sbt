@@ -23,9 +23,14 @@ enablePlugins(SbtPlugin)
 
 scriptedBufferLog := false
 
+// Don't depend on publishLocal when running "scripted". This allows us to run
+// "^publishLocal" for the crossSbtVersions and then run "scripted" on arbitrary
+// SBT versions for testing.
+scriptedDependencies := {}
+
 scriptedLaunchOpts ++= Seq("-Xmx1024M", "-Dplugin.version=" + version.value)
 
-crossSbtVersions := Vector("0.13.16", "1.1.0")
+crossSbtVersions := Vector("0.13.18", "1.1.0")
 
 val amazonSDKVersion = "1.12.134"
 

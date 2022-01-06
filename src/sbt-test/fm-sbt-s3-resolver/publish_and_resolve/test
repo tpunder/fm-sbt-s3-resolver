@@ -1,0 +1,7 @@
+# First we need to publish something
+> project lib
+> publish
+
+# Now let's try to resolve what we just published
+> project app
+> run
