@@ -19,6 +19,8 @@ import java.io.{File, FileInputStream, InputStream}
 import java.net.{URI, URL}
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
+import javax.naming.{Context, NamingException}
+import javax.naming.directory.{Attribute, Attributes, InitialDirContext}
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
@@ -29,9 +31,6 @@ import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurit
 import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
-
-import javax.naming.{Context, NamingException}
-import javax.naming.directory.InitialDirContext
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -197,7 +196,7 @@ object S3URLHandler {
   def getRegionNameFromDNS(bucket: String): Option[String] = {
     // maven.custom.s3.amazonaws.com. 21600 IN	CNAME	s3-1-w.amazonaws.com.
     //           s3-1-w.amazonaws.com.	39	IN	CNAME	s3-w.us-east-1.amazonaws.com.
-    getDNSAliases(bucket).flatMap { RegionMatcher.findFirstIn(_) }.headOption
+    getDNSAliasesForBucket(bucket).flatMap { RegionMatcher.findFirstIn(_) }.headOption
   }
 
   private[this] val dnsContext: InitialDirContext = {
@@ -206,24 +205,24 @@ object S3URLHandler {
     new InitialDirContext(env)
   }
 
-  private def getDNSAliases(bucket: String): Seq[String] = {
-    val bucketHostname = bucket + ".s3.amazonaws.com"
+  def getDNSAliasesForBucket(bucket: String): Seq[String] = {
+    getDNSAliasesForHost(bucket + ".s3.amazonaws.com")
+  }
 
-    @tailrec def impl(host: String, matches: Seq[String]): Seq[String] = {
-      val cname: Option[String] = try {
-        val attrs = dnsContext.getAttributes(host, Array("CNAME"))
-        Option(attrs.get("CNAME"))
-          .flatMap{ attr => Option(attr.get) }
-          .collectFirst { case host: String => host }
-      } catch {
-        case _: NamingException => None
-      }
+  def getDNSAliasesForHost(host: String): Seq[String] = getDNSAliasesForHost(host, Nil)
 
-      if (cname.isEmpty || cname.exists{ matches.contains(_) }) matches
-      else impl(cname.get, cname.get +: matches)
+  @tailrec private def getDNSAliasesForHost(host: String, matches: List[String]): Seq[String] = {
+    val cname: Option[String] = try {
+      val attrs: Attributes = dnsContext.getAttributes(host, Array("CNAME"))
+      Option(attrs.get("CNAME"))
+        .flatMap{ attr: Attribute => Option(attr.get) }
+        .collectFirst{ case res: String => res }
+    } catch {
+      case _: NamingException => None
     }
 
-    impl(bucketHostname, Nil)
+    if (cname.isEmpty || cname.exists{ matches.contains(_) }) matches
+    else getDNSAliasesForHost(cname.get, cname.get :: matches)
   }
 }
 
