@@ -27,6 +27,6 @@ final class S3RawRepository(val name: String) extends AnyVal {
   
   private def resolvePattern(base: String, pattern: String): String = {
     val normBase = base.replace('\\', '/')
-    if(normBase.endsWith("/") || pattern.startsWith("/")) normBase + pattern else normBase + "/" + pattern
+    if (normBase.endsWith("/") || pattern.startsWith("/")) normBase + pattern else normBase + "/" + pattern
   }
 }

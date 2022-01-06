@@ -1,6 +1,6 @@
 # Frugal Mechanic SBT S3 Resolver
 
-[![Build Status](https://app.travis-ci.com/tpunder/fm-sbt-s3-resolver.svg?branch=master)](https://app.travis-ci.com/github/tpunder/fm-sbt-s3-resolver)
+[![Build Status](https://app.travis-ci.com/tpunder/fm-sbt-s3-resolver.svg?branch=master)](https://app.travis-ci.com/github/tpunder/fm-sbt-s3-resolver) [![fm-sbt-s3-resolver Scala version support](https://index.scala-lang.org/tpunder/fm-sbt-s3-resolver/fm-sbt-s3-resolver/latest-by-scala-version.svg?targetType=Sbt)](https://index.scala-lang.org/tpunder/fm-sbt-s3-resolver/fm-sbt-s3-resolver)
 
 This SBT plugin adds support for using Amazon S3 for resolving and publishing using s3:// urls.
 
@@ -62,13 +62,13 @@ request: https://github.com/sbt/librarymanagement/pull/183
 Maven Style:
 
 ```scala
-resolvers += "FrugalMechanic Snapshots" at "s3://maven.frugalmechanic.com/snapshots"
+resolvers += "FrugalMechanic Snapshots" at "s3://fm-sbt-s3-resolver-example-bucket/snapshots"
 ```
 
 Ivy Style:
 
 ```scala
-resolvers += Resolver.url("FrugalMechanic Snapshots", url("s3://maven.frugalmechanic.com/snapshots"))(Resolver.ivyStylePatterns)
+resolvers += Resolver.url("FrugalMechanic Snapshots", url("s3://fm-sbt-s3-resolver-example-bucket/snapshots"))(Resolver.ivyStylePatterns)
 ```
 
 ### Publishing to S3
@@ -77,26 +77,26 @@ Maven Style:
 
 ```scala
 publishMavenStyle := true
-publishTo := Some("FrugalMechanic Snapshots" at "s3://maven.frugalmechanic.com/snapshots")
+publishTo := Some("FrugalMechanic Snapshots" at "s3://fm-sbt-s3-resolver-example-bucket/snapshots")
 ```
 
 Ivy Style:
 
 ```scala
 publishMavenStyle := false
-publishTo := Some(Resolver.url("FrugalMechanic Snapshots", url("s3://maven.frugalmechanic.com/snapshots"))(Resolver.ivyStylePatterns))
+publishTo := Some(Resolver.url("FrugalMechanic Snapshots", url("s3://fm-sbt-s3-resolver-example-bucket/snapshots"))(Resolver.ivyStylePatterns))
 ```
 
 ### Valid s3:// URL Formats
 
 The examples above are using the [Static Website Using a Custom Domain](http://docs.aws.amazon.com/AmazonS3/latest/dev/website-hosting-custom-domain-walkthrough.html) functionality of S3.
 
-These would also be equivalent (for the **maven.frugalmechanic.com** bucket):
+These would also be equivalent (for the **fm-sbt-s3-resolver-example-bucket** bucket):
 
-    s3://s3-us-west-2.amazonaws.com/maven.frugalmechanic.com/snapshots
-    s3://maven.frugalmechanic.com.s3-us-west-2.amazonaws.com/snapshots
-    s3://maven.frugalmechanic.com.s3.amazonaws.com/snapshots
-    s3://s3.amazonaws.com/maven.frugalmechanic.com/snapshots
+    s3://s3-us-west-2.amazonaws.com/fm-sbt-s3-resolver-example-bucket/snapshots
+    s3://fm-sbt-s3-resolver-example-bucket.s3-us-west-2.amazonaws.com/snapshots
+    s3://fm-sbt-s3-resolver-example-bucket.s3.amazonaws.com/snapshots
+    s3://s3.amazonaws.com/fm-sbt-s3-resolver-example-bucket/snapshots
 
 All of these forms should work:
 
@@ -133,7 +133,7 @@ S3 Credentials are checked **in the following places and _order_** (e.g. bucket 
   
 Example:
 
-The bucket name "maven.frugalmechanic.com" becomes "MAVEN\_FRUGALMECHANIC\_COM":
+The bucket name "fm-sbt-s3-resolver-example-bucket" becomes "MAVEN\_FRUGALMECHANIC\_COM":
 
 ```shell
 AWS_ACCESS_KEY_ID_MAVEN_FRUGALMECHANIC_COM="XXXXXX" AWS_SECRET_KEY_MAVEN_FRUGALMECHANIC_COM="XXXXXX" sbt
@@ -149,7 +149,7 @@ AWS_ACCESS_KEY_ID_MAVEN_FRUGALMECHANIC_COM="XXXXXX" AWS_SECRET_KEY_MAVEN_FRUGALM
 Example:
 
 ```shell
-SBT_OPTS="-Daws.accessKeyId.maven.frugalmechanic.com=XXXXXX -Daws.secretKey.maven.frugalmechanic.com=XXXXXX" sbt
+SBT_OPTS="-Daws.accessKeyId.fm-sbt-s3-resolver-example-bucket=XXXXXX -Daws.secretKey.fm-sbt-s3-resolver-example-bucket=XXXXXX" sbt
 ```
 
 #### Bucket Specific Property Files
@@ -237,7 +237,7 @@ s3CredentialsProvider := { (bucket: String) =>
 
 ## IAM Policy Examples
 
-I recommend that you create IAM Credentials for reading/writing your Maven S3 Bucket.  Here are some examples for our **maven.frugalmechanic.com** bucket:
+I recommend that you create IAM Credentials for reading/writing your Maven S3 Bucket.  Here are some examples for our **fm-sbt-s3-resolver-example-bucket** bucket:
 
 ### Read/Write Policy (for publishing)
 
@@ -253,12 +253,12 @@ I recommend that you create IAM Credentials for reading/writing your Maven S3 Bu
     {
       "Effect": "Allow",
       "Action": ["s3:ListBucket"],
-      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>"]
+      "Resource": ["arn:aws:s3:::<b>fm-sbt-s3-resolver-example-bucket</b>"]
     },
     {
       "Effect": "Allow",
       "Action": ["s3:DeleteObject","s3:GetObject","s3:PutObject"],
-      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/*"]
+      "Resource": ["arn:aws:s3:::<b>fm-sbt-s3-resolver-example-bucket</b>/*"]
     }
   ]
 }
@@ -278,12 +278,12 @@ I recommend that you create IAM Credentials for reading/writing your Maven S3 Bu
     {
       "Effect": "Allow",
       "Action": ["s3:ListBucket"],
-      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>"]
+      "Resource": ["arn:aws:s3:::<b>fm-sbt-s3-resolver-example-bucket</b>"]
     },
     {
       "Effect": "Allow",
       "Action": ["s3:GetObject"],
-      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/*"]
+      "Resource": ["arn:aws:s3:::<b>fm-sbt-s3-resolver-example-bucket</b>/*"]
     }
   ]
 }
@@ -303,17 +303,17 @@ I recommend that you create IAM Credentials for reading/writing your Maven S3 Bu
     {
       "Effect": "Allow",
       "Action": ["s3:ListBucket"],
-      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>"]
+      "Resource": ["arn:aws:s3:::<b>fm-sbt-s3-resolver-example-bucket</b>"]
     },
     {
       "Effect": "Allow",
       "Action": ["s3:GetObject"],
-      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/<b>releases</b>/*"]
+      "Resource": ["arn:aws:s3:::<b>fm-sbt-s3-resolver-example-bucket</b>/<b>releases</b>/*"]
     },
     {
       "Effect": "Allow",
       "Action": ["s3:DeleteObject","s3:GetObject","s3:PutObject"],
-      "Resource": ["arn:aws:s3:::<b>maven.frugalmechanic.com</b>/<b>snapshots</b>/*"]
+      "Resource": ["arn:aws:s3:::<b>fm-sbt-s3-resolver-example-bucket</b>/<b>snapshots</b>/*"]
     }
   ]
 }
@@ -394,7 +394,7 @@ Example:
 }
 </pre>
 
-## Authors
+## Maintainer
 
 Tim Underwood (<a href="https://github.com/tpunder" rel="author">GitHub</a>, <a href="https://www.linkedin.com/in/tpunder" rel="author">LinkedIn</a>, <a href="https://twitter.com/tpunder" rel="author">Twitter</a>)
 
