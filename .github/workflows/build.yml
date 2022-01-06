@@ -41,6 +41,7 @@ jobs:
   scripted:
     needs: build # Don't bother running the scripted tests if the main build/test fails.
     runs-on: ${{ matrix.os }}
+    environment: fm-sbt-s3-resolver-example-bucket # This is the GitHub environment that holds the AWS secrets referenced below
     strategy:
       fail-fast: false
       matrix:
