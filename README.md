@@ -1,6 +1,6 @@
 # Frugal Mechanic SBT S3 Resolver
 
-[![Build Status](https://app.travis-ci.com/tpunder/fm-sbt-s3-resolver.svg?branch=master)](https://app.travis-ci.com/github/tpunder/fm-sbt-s3-resolver) [![fm-sbt-s3-resolver Scala version support](https://index.scala-lang.org/tpunder/fm-sbt-s3-resolver/fm-sbt-s3-resolver/latest-by-scala-version.svg?targetType=Sbt)](https://index.scala-lang.org/tpunder/fm-sbt-s3-resolver/fm-sbt-s3-resolver)
+[![Build and Tests](https://github.com/tpunder/fm-sbt-s3-resolver/actions/workflows/build.yml/badge.svg)](https://github.com/tpunder/fm-sbt-s3-resolver/actions/workflows/build.yml) [![fm-sbt-s3-resolver Scala version support](https://index.scala-lang.org/tpunder/fm-sbt-s3-resolver/fm-sbt-s3-resolver/latest-by-scala-version.svg?targetType=Sbt)](https://index.scala-lang.org/tpunder/fm-sbt-s3-resolver/fm-sbt-s3-resolver)
 
 This SBT plugin adds support for using Amazon S3 for resolving and publishing using s3:// urls.
 
