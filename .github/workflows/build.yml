@@ -68,11 +68,55 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
+      
+      #
+      # Test using S3 if we can access the secrets
+      #
+
       # This will publishLocal for all crossSbtVersions then test example apps
       # using the matrix.sbt version. For example we will publish the 0.13 and
       # 1.0 compatible versions of the plugin (via our configured
       # crossSbtVersions) and then test using a wider range of SBT versions.
       - run: sbt -v ^publishLocal ^^${{ matrix.sbt }} scripted
+        if: ${{ secrets.AWS_ACCESS_KEY_ID && secrets.AWS_SECRET_KEY }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      
+      #
+      # Test using LocalStack if no access to secrets
+      #
+      
+      - name: Start LocalStack
+        if: ${{ !secrets.AWS_ACCESS_KEY_ID || !secrets.AWS_SECRET_KEY }}
+        run: |
+          # install LocalStack cli and awslocal
+          pip install localstack awscli-local[ver1]
+          # Make sure to pull the latest version of the image
+          docker pull localstack/localstack
+          # Start LocalStack in the background
+          localstack start -d
+          # Wait 30 seconds for the LocalStack container to become ready before timing out
+          echo "Waiting for LocalStack startup..."
+          localstack wait -t 30
+          echo "LocalStack Startup complete"
+        env:
+          SERVICES=s3
+      - name: Setup LocalStack S3 Bucket
+        run: |
+          awslocal s3api create-bucket --bucket fm-sbt-s3-resolver-example-bucket
+      # This will publishLocal for all crossSbtVersions then test example apps
+      # using the matrix.sbt version. For example we will publish the 0.13 and
+      # 1.0 compatible versions of the plugin (via our configured
+      # crossSbtVersions) and then test using a wider range of SBT versions.
+      - run: sbt -v ^publishLocal ^^${{ matrix.sbt }} scripted
+        if: ${{ !secrets.AWS_ACCESS_KEY_ID || !secrets.AWS_SECRET_KEY }}
+        env:
+          # LocalStack Notes:
+          #  - Seems to want Path Style Access (which is deprecated in AWS S3)
+          #  - Seems to want the service endpoint to contain the bucket name (even with path style access)
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_KEY: test
+          S3_PATH_STYLE_ACCESS: true
+          S3_SERVICE_ENDPOINT: http://fm-sbt-s3-resolver-example-bucket.s3.us-west-2.localhost.localstack.cloud:4566
+          S3_SIGNING_REGION: us-west-2

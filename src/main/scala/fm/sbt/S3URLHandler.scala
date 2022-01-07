@@ -24,9 +24,10 @@ import javax.naming.directory.{Attribute, Attributes, InitialDirContext}
 import com.amazonaws.ClientConfiguration
 import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
 import com.amazonaws.auth._
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.model._
-import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client, AmazonS3URI}
+import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client, AmazonS3ClientBuilder, AmazonS3URI}
 import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClient}
 import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
 import org.apache.ivy.util.url.URLHandler
@@ -283,12 +284,26 @@ final class S3URLHandler extends URLHandler {
     var client: AmazonS3 = amazonS3ClientCache.get(bucket)
 
     if (null == client) {
-      client = AmazonS3Client.builder()
+      // This allows you to change the S3 endpoint and signing region to point to a non-aws S3 implementation (e.g. LocalStack).
+      val endpointConfiguration: Option[EndpointConfiguration] = for {
+        serviceEndpoint: String <- Option(System.getenv("S3_SERVICE_ENDPOINT"))
+        signingRegion: String <- Option(System.getenv("S3_SIGNING_REGION"))
+      } yield new EndpointConfiguration(serviceEndpoint, signingRegion)
+
+      // Path Style Access is deprecated by Amazon S3 but LocalStack seems to want to use it
+      val pathStyleAccess: Boolean = Option(System.getenv("S3_PATH_STYLE_ACCESS")).map{ _.toBoolean }.getOrElse(false)
+
+      val tmp: AmazonS3ClientBuilder = AmazonS3Client.builder()
         .withCredentials(getCredentialsProvider(bucket))
         .withClientConfiguration(getProxyConfiguration)
         .withForceGlobalBucketAccessEnabled(true)
-        .withRegion(getRegion(url, bucket))
-        .build()
+        .withPathStyleAccessEnabled(pathStyleAccess)
+
+      // Only one of the endpointConfiguration or region can be set at a time.
+      client = (endpointConfiguration match {
+        case Some(endpoint) => tmp.withEndpointConfiguration(endpoint)
+        case None => tmp.withRegion(getRegion(url, bucket))
+      }).build()
 
       amazonS3ClientCache.put(bucket, client)
 
