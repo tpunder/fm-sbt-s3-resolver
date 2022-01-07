@@ -95,15 +95,11 @@ jobs:
           # Make sure to pull the latest version of the image
           docker pull localstack/localstack
           # Start LocalStack in the background
-          localstack start -d
+          SERVICES=s3 localstack start -d
           # Wait 30 seconds for the LocalStack container to become ready before timing out
           echo "Waiting for LocalStack startup..."
           localstack wait -t 30
           echo "LocalStack Startup complete"
-        env:
-          SERVICES=s3
-      - name: Setup LocalStack S3 Bucket
-        run: |
           awslocal s3api create-bucket --bucket fm-sbt-s3-resolver-example-bucket
       # This will publishLocal for all crossSbtVersions then test example apps
       # using the matrix.sbt version. For example we will publish the 0.13 and
