@@ -9,7 +9,7 @@ publishMavenStyle := true
 licenses := Seq("Apache License, Version 2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"))
 
 import xerial.sbt.Sonatype._
-sonatypeProjectHosting := Some(GitHubHosting("frugalmechanic", "fm-sbt-s3-resolver", "Tim Underwood", "timunderwood@gmail.com"))
+sonatypeProjectHosting := Some(GitHubHosting("tpunder", "fm-sbt-s3-resolver", "Tim Underwood", "timunderwood@gmail.com"))
 
 //
 // For sbt-pgp
