@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: coursier/cache-action@v6
       - uses: tpunder/cross-scala-versions@master
         id: run
     outputs:
@@ -29,7 +28,6 @@ jobs:
     name: Build/Test - SBT ${{ matrix.sbt }}, Java ${{ matrix.Java }} (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v2
-      - uses: coursier/cache-action@v6
       - name: Setup Java
         uses: actions/setup-java@v2
         with:
@@ -65,7 +63,6 @@ jobs:
     name: Scripted - SBT ${{ matrix.sbt }}, Java ${{ matrix.Java }} (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v2
-      - uses: coursier/cache-action@v6
       - name: Setup Java
         uses: actions/setup-java@v2
         with:
