@@ -1,4 +1,8 @@
-# First we need to publish something
+# The resolve should fail since we haven't published anything
+> project app
+-> update
+
+# Now let's publish the library
 > project lib
 > publish
 
