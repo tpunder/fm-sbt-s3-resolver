@@ -37,7 +37,7 @@ val amazonSDKVersion = "1.12.134"
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
   "com.amazonaws" % "aws-java-sdk-sts" % amazonSDKVersion,
-  "org.apache.ivy" % "ivy" % "2.4.0",
+  "org.apache.ivy" % "ivy" % "2.5.0",
   "org.scalatest" %% "scalatest" % "3.2.10" % Test
 )
 
