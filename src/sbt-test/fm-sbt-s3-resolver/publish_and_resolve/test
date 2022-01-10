@@ -5,6 +5,7 @@
 # Now let's publish the library
 > project lib
 > publish
+> checkCoursierVersions
 
 # Now let's try to resolve what we just published
 > project app

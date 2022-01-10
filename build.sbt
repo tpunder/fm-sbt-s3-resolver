@@ -38,6 +38,8 @@ libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
   "com.amazonaws" % "aws-java-sdk-sts" % amazonSDKVersion,
   "org.apache.ivy" % "ivy" % "2.5.0",
+  // Uncomment, and rename "src/main/resources/log4j.properties.debug" to "log4j.properties" to enable wire debugging
+  //"log4j" % "log4j" % "1.2.17",
   "org.scalatest" %% "scalatest" % "3.2.10" % Test
 )
 

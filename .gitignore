@@ -1,13 +1,16 @@
+.bloop
 .bsp
 .cache
 .cache-main
 .classpath
 .idea
 .idea_modules
+.metals
 .project
 .scala_dependencies
 .settings
 .target
 .worksheet
+.vscode
 target
 

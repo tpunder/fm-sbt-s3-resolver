@@ -16,12 +16,15 @@
 package fm.sbt.s3
 
 import com.amazonaws.AmazonServiceException
-import com.amazonaws.services.s3.model.{ObjectMetadata, S3Object}
+import com.amazonaws.services.s3.model.ObjectMetadata
 import fm.sbt.S3URLHandler
+
 import java.io.InputStream
 import java.net.{HttpURLConnection, URL}
+import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Date
 
 object S3URLConnection {
   private val s3: S3URLHandler = new S3URLHandler()
@@ -32,36 +35,46 @@ object S3URLConnection {
  */
 final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
   import S3URLConnection.s3
-
-  private trait S3Response extends AutoCloseable {
-    def meta: ObjectMetadata
-    def inputStream: Option[InputStream]
-  }
-
-  private case class HEADResponse(meta: ObjectMetadata) extends S3Response {
-    def close(): Unit = {}
-    def inputStream: Option[InputStream] = None
-  }
-
-  private case class GETResponse(obj: S3Object) extends S3Response {
-    def meta: ObjectMetadata = obj.getObjectMetadata
-    def inputStream: Option[InputStream] = Option(obj.getObjectContent())
-    def close(): Unit = obj.close()
-  }
+  implicit def logger = fm.sbt.logger
 
   private[this] var response: Option[S3Response] = None
 
   def connect(): Unit = {
     val (client, bucket, key) = s3.getClientBucketAndKey(url)
+    logger.debug(s"[S3URLConnection] connect() (client: $client, bucket: $bucket, key: $key)")
 
     try {
       response = getRequestMethod.toLowerCase match {
-        case "head" => Option(HEADResponse(client.getObjectMetadata(bucket, key)))
-        case "get" => Option(GETResponse(client.getObject(bucket, key)))
+        case "head" =>
+          url.getPath match {
+            // Respond to maven-metadata.xml HEAD requests
+            case p if p.endsWith("/maven-metadata.xml") || p.endsWith("/maven-metadata.xml.sha1")  =>
+              val meta = new ObjectMetadata()
+              meta.setLastModified(new Date)
+              Option(HEADResponse(meta))
+            case _ => Option(HEADResponse(client.getObjectMetadata(bucket, key)))
+          }
+        case "get" =>
+          url.getPath match {
+            // Generate 'maven-metadata.xml' contents to allow getting artifact versions
+            //   https://github.com/coursier/coursier/issues/1874#issuecomment-783632512
+            case p if p.endsWith("/maven-metadata.xml.sha1") =>
+              S3MavenMetadata.getSha1(client, bucket, key).map{ contents =>
+                TextResponse(contents.getBytes(StandardCharsets.UTF_8), new Date)
+              }
+            case p if p.endsWith("/maven-metadata.xml") =>
+              S3MavenMetadata.getXml(client, bucket, key).map{ contents =>
+                XmlResponse(contents.getBytes(StandardCharsets.UTF_8), new Date)
+              }
+            case _ => Option(GETResponse(client.getObject(bucket, key)))
+
+          }
         case "post" => ???
         case "put" => ???
         case _ => throw new IllegalArgumentException("Invalid request method: "+getRequestMethod)
       }
+
+      logger.debug(s"[S3URLConnection] response: $response")
 
       responseCode = if (response.isEmpty) 404 else 200
     } catch {
