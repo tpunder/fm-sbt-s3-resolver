@@ -44,8 +44,14 @@ object S3URLHandler {
 
   private var bucketCredentialsProvider: String => AWSCredentialsProvider = makePropertiesFileCredentialsProvider
 
+  private var bucketACLMap: Map[String, CannedAccessControlList] = Map()
+
   def registerBucketCredentialsProvider(provider: String => AWSCredentialsProvider): Unit = {
     bucketCredentialsProvider = provider
+  }
+
+  def registerBucketACLMap(aclMap: Map[String, CannedAccessControlList]): Unit = {
+    bucketACLMap = aclMap
   }
 
   def getBucketCredentialsProvider: String => AWSCredentialsProvider = bucketCredentialsProvider
@@ -389,7 +395,22 @@ final class S3URLHandler extends URLHandler {
     def putImpl(serverSideEncryption: Boolean): PutObjectResult = {
       val meta: ObjectMetadata = new ObjectMetadata()
       if (serverSideEncryption) meta.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION)
-      client.putObject(new PutObjectRequest(bucket, key, src).withMetadata(meta))
+
+      val customizers = Seq[PutObjectRequest => PutObjectRequest](
+        // add metadata
+        x => {x.withMetadata(meta)},
+        // add bucket ACL
+        x => {
+          bucketACLMap.get(bucket) match {
+            case Some(y) => x.withCannedAcl(y)
+            case None => x
+          }
+        }
+      )
+
+      val req = customizers.foldLeft(new PutObjectRequest(bucket, key, src))((putObjectRequest, customizer) => customizer(putObjectRequest))
+
+      client.putObject(req)
     }
 
     // Do we know for sure that this bucket requires SSE?
