@@ -16,8 +16,8 @@
 package fm.sbt
 
 import java.net.{URL, URLStreamHandler, URLStreamHandlerFactory}
-
 import com.amazonaws.auth.AWSCredentialsProvider
+import com.amazonaws.services.s3.model.CannedAccessControlList
 import org.apache.ivy.util.url.{URLHandlerDispatcher, URLHandlerRegistry}
 import sbt.Keys._
 import sbt._
@@ -43,6 +43,8 @@ object S3ResolverPlugin extends AutoPlugin {
     lazy val showS3Credentials: InputKey[Unit] = {
       InputKey[Unit]("showS3Credentials", "Just outputs credentials that are loaded by the s3credentials provider")
     }
+
+    lazy val s3ResolverBucketACLMap: SettingKey[Map[String, CannedAccessControlList]] = settingKey[Map[String, CannedAccessControlList]]("This allows us to specify a canned ACL for s3 buckets")
   }
 
   import autoImport._
@@ -121,6 +123,7 @@ object S3ResolverPlugin extends AutoPlugin {
       val extracted: Extracted = Project.extract(state)
 
       S3URLHandler.registerBucketCredentialsProvider(extracted.getOpt(s3CredentialsProvider).getOrElse(S3URLHandler.defaultCredentialsProviderChain))
+      S3URLHandler.registerBucketACLMap(extracted.getOpt(s3ResolverBucketACLMap).getOrElse(Map()))
 
       state
     }
