@@ -211,16 +211,17 @@ roleArn = arn:aws:iam::123456789012:role/RoleName
 
 ### Custom S3 Credentials
 
-If the default credential providers do not work for you then you can specify your own AWSCredentialsProvider using the `s3CredentialsProvider` SettingKey in your `build.sbt` file:
+If the default credential providers do not work for you then you can specify your own AwsCredentialsProvider using the `s3CredentialsProvider` SettingKey in your `build.sbt` file:
 
 ```scala
-import com.amazonaws.auth.{AWSCredentialsProviderChain, DefaultAWSCredentialsProviderChain}
+FIXME
+import com.amazonaws.auth.{AwsCredentialsProviderChain, DefaultAwsCredentialsProviderChain}
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
 
 s3CredentialsProvider := { (bucket: String) =>
-  new AWSCredentialsProviderChain(
+  new AwsCredentialsProviderChain(
     new ProfileCredentialsProvider("my_profile"),
-    DefaultAWSCredentialsProviderChain.getInstance()
+    DefaultAwsCredentialsProviderChain.getInstance()
   )
 }
 ```

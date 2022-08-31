@@ -16,8 +16,8 @@
 package fm.sbt
 
 import java.net.{URL, URLStreamHandler, URLStreamHandlerFactory}
-import com.amazonaws.auth.AWSCredentialsProvider
-import com.amazonaws.services.s3.model.CannedAccessControlList
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider
+import software.amazon.awssdk.services.s3.model.ObjectCannedACL
 import org.apache.ivy.util.url.{URLHandlerDispatcher, URLHandlerRegistry}
 import sbt.Keys._
 import sbt._
@@ -32,19 +32,19 @@ object S3ResolverPlugin extends AutoPlugin {
   object autoImport extends S3Implicits {
 
     @deprecated("use `s3CredentialsProvider` (starting with lower case) instead", "0.14.0")
-    lazy val S3CredentialsProvider: SettingKey[String => AWSCredentialsProvider] = {
+    lazy val S3CredentialsProvider: SettingKey[String => AwsCredentialsProvider] = {
       s3CredentialsProvider
     }
 
-    lazy val s3CredentialsProvider: SettingKey[String => AWSCredentialsProvider] = {
-      settingKey[String => AWSCredentialsProvider]("AWS credentials provider to access S3")
+    lazy val s3CredentialsProvider: SettingKey[String => AwsCredentialsProvider] = {
+      settingKey[String => AwsCredentialsProvider]("AWS credentials provider to access S3")
     }
 
     lazy val showS3Credentials: InputKey[Unit] = {
       InputKey[Unit]("showS3Credentials", "Just outputs credentials that are loaded by the s3credentials provider")
     }
 
-    lazy val s3ResolverBucketACLMap: SettingKey[Map[String, CannedAccessControlList]] = settingKey[Map[String, CannedAccessControlList]]("This allows us to specify a canned ACL for s3 buckets")
+    lazy val s3ResolverBucketACLMap: SettingKey[Map[String, ObjectCannedACL]] = settingKey[Map[String, ObjectCannedACL]]("This allows us to specify a canned ACL for s3 buckets")
   }
 
   import autoImport._
@@ -59,14 +59,14 @@ object S3ResolverPlugin extends AutoPlugin {
 
       spaceDelimited("<arg>").parsed match {
         case bucket :: Nil =>
-          val provider: AWSCredentialsProvider = s3CredentialsProvider.value(bucket)
+          val provider: AwsCredentialsProvider = s3CredentialsProvider.value(bucket)
 
           Try {
-            Option(provider.getCredentials) match {
+            Option(provider.resolveCredentials) match {
               case Some(awsCredentials) =>
                 log.info("Found following AWS credentials:")
-                log.info("Access key: " + awsCredentials.getAWSAccessKeyId)
-                log.info("Secret key: " + awsCredentials.getAWSSecretKey)
+                log.info("Access key: " + awsCredentials.accessKeyId())
+                log.info("Secret key: " + awsCredentials.secretAccessKey())
 
               case None =>
                 log.error("Couldn't find credentials for bucked: %s" format bucket)

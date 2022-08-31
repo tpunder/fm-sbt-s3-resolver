@@ -4,6 +4,7 @@ description := "SBT S3 Resolver Plugin"
 
 scalacOptions := Seq(
   "-encoding", "UTF-8",
+  "-target:jvm-1.8",
   "-unchecked",
   "-deprecation",
   "-language:implicitConversions",
@@ -32,11 +33,11 @@ scriptedLaunchOpts ++= Seq("-Xmx1024M", "-Dplugin.version=" + version.value)
 
 crossSbtVersions := Vector("0.13.18", "1.1.0")
 
-val amazonSDKVersion = "1.12.134"
+val amazonSDKVersion = "2.17.261"
 
 libraryDependencies ++= Seq(
-  "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
-  "com.amazonaws" % "aws-java-sdk-sts" % amazonSDKVersion,
+  "software.amazon.awssdk" % "s3" % amazonSDKVersion,
+  "software.amazon.awssdk" % "sts" % amazonSDKVersion,
   "org.apache.ivy" % "ivy" % "2.4.0",
   "org.scalatest" %% "scalatest" % "3.2.10" % Test
 )

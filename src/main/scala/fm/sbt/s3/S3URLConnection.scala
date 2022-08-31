@@ -15,12 +15,11 @@
  */
 package fm.sbt.s3
 
-import com.amazonaws.AmazonServiceException
-import com.amazonaws.services.s3.model.{ObjectMetadata, S3Object}
+import software.amazon.awssdk.core.ResponseInputStream
+import software.amazon.awssdk.services.s3.model.{GetObjectRequest, GetObjectResponse, HeadObjectRequest, HeadObjectResponse, S3Exception}
 import fm.sbt.S3URLHandler
 import java.io.InputStream
 import java.net.{HttpURLConnection, URL}
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 object S3URLConnection {
@@ -33,19 +32,17 @@ object S3URLConnection {
 final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
   import S3URLConnection.s3
 
-  private trait S3Response extends AutoCloseable {
-    def meta: ObjectMetadata
+  sealed private trait S3Response extends AutoCloseable {
     def inputStream: Option[InputStream]
   }
 
-  private case class HEADResponse(meta: ObjectMetadata) extends S3Response {
+  private case class HEADResponse(resp: HeadObjectResponse) extends S3Response {
     def close(): Unit = {}
     def inputStream: Option[InputStream] = None
   }
 
-  private case class GETResponse(obj: S3Object) extends S3Response {
-    def meta: ObjectMetadata = obj.getObjectMetadata
-    def inputStream: Option[InputStream] = Option(obj.getObjectContent())
+  private case class GETResponse(obj: ResponseInputStream[GetObjectResponse]) extends S3Response {
+    def inputStream: Option[InputStream] = Option(obj)
     def close(): Unit = obj.close()
   }
 
@@ -56,8 +53,8 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
 
     try {
       response = getRequestMethod.toLowerCase match {
-        case "head" => Option(HEADResponse(client.getObjectMetadata(bucket, key)))
-        case "get" => Option(GETResponse(client.getObject(bucket, key)))
+        case "head" => Option(HEADResponse(client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build())))
+        case "get" => Option(GETResponse(client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build())))
         case "post" => ???
         case "put" => ???
         case _ => throw new IllegalArgumentException("Invalid request method: "+getRequestMethod)
@@ -65,7 +62,7 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
 
       responseCode = if (response.isEmpty) 404 else 200
     } catch {
-      case ex: AmazonServiceException => responseCode = ex.getStatusCode
+      case ex: S3Exception => responseCode = ex.statusCode()
     }
 
     // Also set the responseMessage (an HttpURLConnection field) for better compatibility
@@ -73,7 +70,7 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
     connected = true
   }
 
-  def usingProxy(): Boolean = Option(s3.getProxyConfiguration.getProxyHost).exists{ _ != "" }
+  def usingProxy(): Boolean = false //Option(s3.getProxyConfiguration.getProxyHost).exists{ _ != "" }
 
   override def getInputStream: InputStream = {
     if (!connected) connect()
@@ -93,13 +90,27 @@ final class S3URLConnection(url: URL) extends HttpURLConnection(url) {
   override def getHeaderField(field: String): String = {
     if (!connected) connect()
 
-    field.toLowerCase match {
-      case "content-type" => response.map{ _.meta.getContentType }.orNull
-      case "content-encoding" => response.map{ _.meta.getContentEncoding }.orNull
-      case "content-length" => response.map{ _.meta.getContentLength().toString }.orNull
-      case "last-modified" => response.map{ _.meta.getLastModified }.map{ _.toInstant.atOffset(ZoneOffset.UTC) }.map{ DateTimeFormatter.RFC_1123_DATE_TIME.format }.orNull
-      case _ => null // Should return null if no value for header
+    response match {
+      case Some(HEADResponse(response)) =>
+        field.toLowerCase match {
+        case "content-type" => response.contentType()
+        case "content-encoding" => response.contentEncoding()
+        case "content-length" => response.contentLength().toString
+        case "last-modified" => DateTimeFormatter.RFC_1123_DATE_TIME.format(response.lastModified())
+        case _ => null // Should return null if no value for header
+      }
+      case Some(GETResponse(response)) =>
+        field.toLowerCase match {
+          case "content-type" => response.response()contentType()
+          case "content-encoding" => response.response().contentEncoding()
+          case "content-length" => response.response().contentLength().toString
+          case "last-modified" => DateTimeFormatter.RFC_1123_DATE_TIME.format(response.response().lastModified())
+          case _ => null // Should return null if no value for header
+        }
+      case None => null
     }
+
+
   }
 
   override def disconnect(): Unit = {

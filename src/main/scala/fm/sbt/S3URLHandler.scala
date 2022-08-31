@@ -15,23 +15,25 @@
  */
 package fm.sbt
 
+import com.amazonaws.services.s3.AmazonS3URI
+
 import java.io.{File, FileInputStream, InputStream}
 import java.net.{URI, URL}
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
 import javax.naming.{Context, NamingException}
 import javax.naming.directory.{Attribute, Attributes, InitialDirContext}
-import com.amazonaws.ClientConfiguration
-import com.amazonaws.SDKGlobalConfiguration.{ACCESS_KEY_ENV_VAR, ACCESS_KEY_SYSTEM_PROPERTY, SECRET_KEY_ENV_VAR, SECRET_KEY_SYSTEM_PROPERTY}
-import com.amazonaws.auth._
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
-import com.amazonaws.regions.Regions
-import com.amazonaws.services.s3.model._
-import com.amazonaws.services.s3.{AmazonS3, AmazonS3Client, AmazonS3ClientBuilder, AmazonS3URI}
-import com.amazonaws.services.securitytoken.{AWSSecurityTokenService, AWSSecurityTokenServiceClient}
-import com.amazonaws.services.securitytoken.model.{AssumeRoleRequest, AssumeRoleResult}
+import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, AwsCredentials, AwsCredentialsProvider, AwsCredentialsProviderChain, AwsSessionCredentials, DefaultCredentialsProvider, InstanceProfileCredentialsProvider}
+import software.amazon.awssdk.core.SdkSystemSetting
+import software.amazon.awssdk.core.exception.SdkClientException
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.s3.model.{GetObjectAttributesRequest, GetObjectRequest, GetObjectResponse, HeadObjectRequest, ListObjectsRequest, ListObjectsResponse, ObjectCannedACL, PutObjectRequest, PutObjectResponse, S3Exception, ServerSideEncryption}
+import software.amazon.awssdk.services.s3.{S3Client, S3Configuration}
+import software.amazon.awssdk.services.sts.StsClient
+import software.amazon.awssdk.services.sts.model.{AssumeRoleRequest, AssumeRoleResponse}
 import org.apache.ivy.util.url.URLHandler
 import org.apache.ivy.util.{CopyProgressEvent, CopyProgressListener, Message}
+
 import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -41,48 +43,48 @@ object S3URLHandler {
   private val DOT_SBT_DIR: File = new File(System.getProperty("user.home"), ".sbt")
 
   // This is for matching region names in URLs or host names
-  private val RegionMatcher: Regex = Regions.values().map{ _.getName }.sortBy{ -1 * _.length }.mkString("|").r
+  private val RegionMatcher: Regex = Region.regions().asScala.map{ _.id() }.sortBy{ -1 * _.length }.mkString("|").r
 
-  private var bucketCredentialsProvider: String => AWSCredentialsProvider = makePropertiesFileCredentialsProvider
+  private var bucketCredentialsProvider: String => AwsCredentialsProvider = a => DefaultCredentialsProvider.create() //makePropertiesFileCredentialsProvider
 
-  private var bucketACLMap: Map[String, CannedAccessControlList] = Map()
+  private var bucketACLMap: Map[String, ObjectCannedACL] = Map()
 
-  def registerBucketCredentialsProvider(provider: String => AWSCredentialsProvider): Unit = {
+  def registerBucketCredentialsProvider(provider: String => AwsCredentialsProvider): Unit = {
     bucketCredentialsProvider = provider
   }
 
-  def registerBucketACLMap(aclMap: Map[String, CannedAccessControlList]): Unit = {
+  def registerBucketACLMap(aclMap: Map[String, ObjectCannedACL]): Unit = {
     bucketACLMap = aclMap
   }
 
-  def getBucketCredentialsProvider: String => AWSCredentialsProvider = bucketCredentialsProvider
+  def getBucketCredentialsProvider: String => AwsCredentialsProvider = bucketCredentialsProvider
 
   private class S3URLInfo(available: Boolean, contentLength: Long, lastModified: Long) extends URLHandler.URLInfo(available, contentLength, lastModified)
   
   private class BucketSpecificSystemPropertiesCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
     
-    def AccessKeyName: String = ACCESS_KEY_SYSTEM_PROPERTY
-    def SecretKeyName: String = SECRET_KEY_SYSTEM_PROPERTY
+    def AccessKeyName: String = SdkSystemSetting.AWS_ACCESS_KEY_ID.property()
+    def SecretKeyName: String = SdkSystemSetting.AWS_SECRET_ACCESS_KEY.property()
 
     protected def getProp(names: String*): String = names.map{ System.getProperty }.flatMap{ Option(_) }.head.trim
   }
   
   private class BucketSpecificEnvironmentVariableCredentialsProvider(bucket: String) extends BucketSpecificCredentialsProvider(bucket) {
-    def AccessKeyName: String = ACCESS_KEY_ENV_VAR
-    def SecretKeyName: String = SECRET_KEY_ENV_VAR
+    def AccessKeyName: String = SdkSystemSetting.AWS_ACCESS_KEY_ID.property()
+    def SecretKeyName: String = SdkSystemSetting.AWS_SECRET_ACCESS_KEY.property()
     
     protected def getProp(names: String*): String = names.map{ toEnvironmentVariableName }.map{ System.getenv }.flatMap{ Option(_) }.head.trim
   }
   
-  private abstract class BucketSpecificCredentialsProvider(bucket: String) extends AWSCredentialsProvider {
+  private abstract class BucketSpecificCredentialsProvider(bucket: String) extends AwsCredentialsProvider {
     def AccessKeyName: String
     def SecretKeyName: String
     
-    def getCredentials(): AWSCredentials = {
+    def resolveCredentials(): AwsCredentials = {
       val accessKey: String = getProp(s"${AccessKeyName}.${bucket}", s"${bucket}.${AccessKeyName}")
       val secretKey: String = getProp(s"${SecretKeyName}.${bucket}", s"${bucket}.${SecretKeyName}")
       
-      new BasicAWSCredentials(accessKey, secretKey)
+      AwsBasicCredentials.create(accessKey, secretKey)
     }
     
     def refresh(): Unit = {}
@@ -91,32 +93,33 @@ object S3URLHandler {
     protected def getProp(names: String*): String
   }
 
-  private abstract class RoleBasedCredentialsProvider(providerChain: AWSCredentialsProviderChain) extends AWSCredentialsProvider {
+  private abstract class RoleBasedCredentialsProvider(providerChain: AwsCredentialsProviderChain) extends AwsCredentialsProvider {
     def RoleArnKeyNames: Seq[String]
 
     // This should throw an exception if the value is missing
     protected def getRoleArn(keys: String*): String
 
-    def getCredentials(): AWSCredentials = {
+    def resolveCredentials(): AwsCredentials = {
       val roleArn: String = getRoleArn(RoleArnKeyNames: _*)
 
       if (roleArn == null || roleArn == "") return null
 
-      val securityTokenService: AWSSecurityTokenService = AWSSecurityTokenServiceClient.builder().withCredentials(providerChain).build()
+      val securityTokenService: StsClient = StsClient.builder().credentialsProvider(providerChain).build()
 
-      val roleRequest: AssumeRoleRequest = new AssumeRoleRequest()
-        .withRoleArn(roleArn)
-        .withRoleSessionName(System.currentTimeMillis.toString)
+      val roleRequest: AssumeRoleRequest = AssumeRoleRequest.builder()
+        .roleArn(roleArn)
+        .roleSessionName(System.currentTimeMillis.toString)
+        .build()
 
-      val result: AssumeRoleResult = securityTokenService.assumeRole(roleRequest)
+      val result: AssumeRoleResponse = securityTokenService.assumeRole(roleRequest)
 
-      new BasicSessionCredentials(result.getCredentials.getAccessKeyId, result.getCredentials.getSecretAccessKey, result.getCredentials.getSessionToken)
+      AwsSessionCredentials.create(result.credentials().accessKeyId(), result.credentials().secretAccessKey(), result.credentials().sessionToken())
     }
 
     def refresh(): Unit = {}
   }
 
-  private class RoleBasedSystemPropertiesCredentialsProvider(providerChain: AWSCredentialsProviderChain)
+  private class RoleBasedSystemPropertiesCredentialsProvider(providerChain: AwsCredentialsProviderChain)
       extends RoleBasedCredentialsProvider(providerChain) {
 
     val RoleArnKeyName: String = "aws.roleArn"
@@ -125,7 +128,7 @@ object S3URLHandler {
     protected def getRoleArn(keys: String*): String = keys.map( System.getProperty ).flatMap( Option(_) ).head.trim
   }
 
-  private class RoleBasedEnvironmentVariableCredentialsProvider(providerChain: AWSCredentialsProviderChain)
+  private class RoleBasedEnvironmentVariableCredentialsProvider(providerChain: AwsCredentialsProviderChain)
       extends RoleBasedCredentialsProvider(providerChain) {
 
     val RoleArnKeyName: String = "AWS_ROLE_ARN"
@@ -134,7 +137,7 @@ object S3URLHandler {
     protected def getRoleArn(keys: String*): String = keys.map( toEnvironmentVariableName ).map( System.getenv ).flatMap( Option(_) ).head.trim
   }
 
-  private class RoleBasedPropertiesFileCredentialsProvider(providerChain: AWSCredentialsProviderChain, fileName: String)
+  private class RoleBasedPropertiesFileCredentialsProvider(providerChain: AwsCredentialsProviderChain, fileName: String)
       extends RoleBasedCredentialsProvider(providerChain) {
 
     val RoleArnKeyName: String = "roleArn"
@@ -155,13 +158,13 @@ object S3URLHandler {
     }
   }
 
-  private class BucketSpecificRoleBasedSystemPropertiesCredentialsProvider(providerChain: AWSCredentialsProviderChain, bucket: String)
+  private class BucketSpecificRoleBasedSystemPropertiesCredentialsProvider(providerChain: AwsCredentialsProviderChain, bucket: String)
       extends RoleBasedSystemPropertiesCredentialsProvider(providerChain) {
 
     override val RoleArnKeyNames: Seq[String] = Seq(s"${RoleArnKeyName}.${bucket}", s"${bucket}.${RoleArnKeyName}")
   }
 
-  private class BucketSpecificRoleBasedEnvironmentVariableCredentialsProvider(providerChain: AWSCredentialsProviderChain, bucket: String)
+  private class BucketSpecificRoleBasedEnvironmentVariableCredentialsProvider(providerChain: AwsCredentialsProviderChain, bucket: String)
       extends RoleBasedEnvironmentVariableCredentialsProvider(providerChain) {
 
     override val RoleArnKeyNames: Seq[String] = Seq(s"${RoleArnKeyName}.${bucket}", s"${bucket}.${RoleArnKeyName}")
@@ -169,25 +172,25 @@ object S3URLHandler {
   
   private def toEnvironmentVariableName(s: String): String = s.toUpperCase.replace('-','_').replace('.','_').replaceAll("[^A-Z0-9_]", "")
 
-  private def makePropertiesFileCredentialsProvider(fileName: String): PropertiesFileCredentialsProvider = {
-    val file: File = new File(DOT_SBT_DIR, fileName)
-    new PropertiesFileCredentialsProvider(file.toString)
-  }
+//  private def makePropertiesFileCredentialsProvider(fileName: String): PropertiesFileCredentialsProvider = {
+//    val file: File = new File(DOT_SBT_DIR, fileName)
+//    new PropertiesFileCredentialsProvider(file.toString)
+//  }
 
-  def defaultCredentialsProviderChain(bucket: String): AWSCredentialsProviderChain = {
-    val basicProviders: Vector[AWSCredentialsProvider] = Vector(
+  def defaultCredentialsProviderChain(bucket: String): AwsCredentialsProviderChain = {
+    val basicProviders: Vector[AwsCredentialsProvider] = Vector(
       new BucketSpecificEnvironmentVariableCredentialsProvider(bucket),
       new BucketSpecificSystemPropertiesCredentialsProvider(bucket),
-      makePropertiesFileCredentialsProvider(s".s3credentials_${bucket}"),
-      makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
-      DefaultAWSCredentialsProviderChain.getInstance(),
-      makePropertiesFileCredentialsProvider(".s3credentials"),
-      InstanceProfileCredentialsProvider.getInstance()
+//      makePropertiesFileCredentialsProvider(s".s3credentials_${bucket}"),
+//      makePropertiesFileCredentialsProvider(s".${bucket}_s3credentials"),
+      DefaultCredentialsProvider.create(),
+//      makePropertiesFileCredentialsProvider(".s3credentials"),
+      InstanceProfileCredentialsProvider.create()
     )
 
-    val basicProviderChain: AWSCredentialsProviderChain = new AWSCredentialsProviderChain(basicProviders: _*)
+    val basicProviderChain: AwsCredentialsProviderChain = AwsCredentialsProviderChain.builder().credentialsProviders(basicProviders: _*).build()
 
-    val roleBasedProviders: Vector[AWSCredentialsProvider] = Vector(
+    val roleBasedProviders: Vector[AwsCredentialsProvider] = Vector(
       new BucketSpecificRoleBasedEnvironmentVariableCredentialsProvider(basicProviderChain, bucket),
       new BucketSpecificRoleBasedSystemPropertiesCredentialsProvider(basicProviderChain, bucket),
       new RoleBasedPropertiesFileCredentialsProvider(basicProviderChain, s".s3credentials_${bucket}"),
@@ -197,7 +200,7 @@ object S3URLHandler {
       new RoleBasedPropertiesFileCredentialsProvider(basicProviderChain, s".s3credentials")
     )
 
-    new AWSCredentialsProviderChain((roleBasedProviders ++ basicProviders): _*)
+    AwsCredentialsProviderChain.builder().credentialsProviders((roleBasedProviders ++ basicProviders): _*).build()
   }
 
   def getRegionNameFromDNS(bucket: String): Option[String] = {
@@ -241,7 +244,7 @@ final class S3URLHandler extends URLHandler {
   import org.apache.ivy.util.url.URLHandler.{UNAVAILABLE, URLInfo}
 
   // Cache of Bucket Name => AmazonS3 Client Instance
-  private val amazonS3ClientCache: ConcurrentHashMap[String,AmazonS3] = new ConcurrentHashMap()
+  private val amazonS3ClientCache: ConcurrentHashMap[String,S3Client] = new ConcurrentHashMap()
 
   // Cache of Bucket Name => true/false (requires Server Side Encryption or not)
   private val bucketRequiresSSE: ConcurrentHashMap[String,Boolean] = new ConcurrentHashMap()
@@ -256,64 +259,68 @@ final class S3URLHandler extends URLHandler {
 
   private def debug(msg: String): Unit = Message.debug("S3URLHandler."+msg)
 
-  def getCredentialsProvider(bucket: String): AWSCredentialsProvider = {
+  def getCredentialsProvider(bucket: String): AwsCredentialsProvider = {
     Message.info("S3URLHandler - Looking up AWS Credentials for bucket: "+bucket+" ...")
 
-    val credentialsProvider: AWSCredentialsProvider = try {
+    val credentialsProvider: AwsCredentialsProvider = try {
       getBucketCredentialsProvider(bucket)
     } catch {
-      case ex: com.amazonaws.AmazonClientException =>
+      case ex: SdkClientException =>
         Message.error("Unable to find AWS Credentials.")
         throw ex
     }
 
-    Message.info("S3URLHandler - Using AWS Access Key Id: "+credentialsProvider.getCredentials().getAWSAccessKeyId+" for bucket: "+bucket)
+    Message.info("S3URLHandler - Using AWS Access Key Id: "+credentialsProvider.resolveCredentials().accessKeyId()+" for bucket: "+bucket)
 
     credentialsProvider
   }
 
-  def getProxyConfiguration: ClientConfiguration = {
-    val configuration = new ClientConfiguration()
-    for {
-      proxyHost <- Option( System.getProperty("https.proxyHost") )
-      proxyPort <- Option( System.getProperty("https.proxyPort").toInt )
-    } {
-      configuration.setProxyHost(proxyHost)
-      configuration.setProxyPort(proxyPort)
-    }
-    configuration
-  }
+//  def getProxyConfiguration: SdkHttpClient.Builder = {
+//    val configuration = SdkHttpClient.Builder
+//    for {
+//      proxyHost <- Option( System.getProperty("https.proxyHost") )
+//      proxyPort <- Option( System.getProperty("https.proxyPort").toInt )
+//    } {
+//      configuration.setProxyHost(proxyHost)
+//      configuration.setProxyPort(proxyPort)
+//    }
+//    configuration
+//  }
 
-  def getClientBucketAndKey(url: URL): (AmazonS3, String, String) = {
+  def getClientBucketAndKey(url: URL): (S3Client, String, String) = {
     val (bucket, key) = getBucketAndKey(url)
 
-    var client: AmazonS3 = amazonS3ClientCache.get(bucket)
+    var client: S3Client = amazonS3ClientCache.get(bucket)
 
     if (null == client) {
       // This allows you to change the S3 endpoint and signing region to point to a non-aws S3 implementation (e.g. LocalStack).
-      val endpointConfiguration: Option[EndpointConfiguration] = for {
-        serviceEndpoint: String <- Option(System.getenv("S3_SERVICE_ENDPOINT"))
-        signingRegion: String <- Option(System.getenv("S3_SIGNING_REGION"))
-      } yield new EndpointConfiguration(serviceEndpoint, signingRegion)
+      val endpointConfiguration: Option[(URI, Region)] = for {
+        serviceEndpoint <- Option(System.getenv("S3_SERVICE_ENDPOINT")).map(URI.create)
+        signingRegion <- Option(System.getenv("S3_SIGNING_REGION")).map(Region.of)
+      } yield (serviceEndpoint, signingRegion)
 
       // Path Style Access is deprecated by Amazon S3 but LocalStack seems to want to use it
       val pathStyleAccess: Boolean = Option(System.getenv("S3_PATH_STYLE_ACCESS")).map{ _.toBoolean }.getOrElse(false)
 
-      val tmp: AmazonS3ClientBuilder = AmazonS3Client.builder()
-        .withCredentials(getCredentialsProvider(bucket))
-        .withClientConfiguration(getProxyConfiguration)
-        .withForceGlobalBucketAccessEnabled(true)
-        .withPathStyleAccessEnabled(pathStyleAccess)
+      val tmp = S3Client.builder()
+        .credentialsProvider(getCredentialsProvider(bucket))
+//        .httpClient(getProxyConfiguration)
+        .serviceConfiguration(
+          S3Configuration.builder()
+            //        .withForceGlobalBucketAccessEnabled(true) https://github.com/aws/aws-sdk-java-v2/issues/52
+            .pathStyleAccessEnabled(pathStyleAccess)
+            .build()
+        )
 
       // Only one of the endpointConfiguration or region can be set at a time.
       client = (endpointConfiguration match {
-        case Some(endpoint) => tmp.withEndpointConfiguration(endpoint)
-        case None => tmp.withRegion(getRegion(url, bucket))
+        case Some((endpoint, region)) => tmp.endpointOverride(endpoint).region(region)
+        case None => tmp.region(getRegion(url, bucket))
       }).build()
 
       amazonS3ClientCache.put(bucket, client)
 
-      Message.info("S3URLHandler - Created S3 Client for bucket: "+bucket+" and region: "+client.getRegionName)
+      Message.info("S3URLHandler - Created S3 Client for bucket: "+bucket)
     }
 
     (client, bucket, key)
@@ -324,15 +331,15 @@ final class S3URLHandler extends URLHandler {
     
     val (client, bucket, key) = getClientBucketAndKey(url)
     
-    val meta: ObjectMetadata = client.getObjectMetadata(bucket, key)
+    val meta = client.headObject(HeadObjectRequest.builder().bucket(bucket).key(key).build())
     
     val available: Boolean = true
-    val contentLength: Long = meta.getContentLength
-    val lastModified: Long = meta.getLastModified.getTime
+    val contentLength: Long = meta.contentLength()
+    val lastModified: Long = meta.lastModified().toEpochMilli
     
     new S3URLInfo(available, contentLength, lastModified)
   } catch {
-    case ex: AmazonS3Exception if ex.getStatusCode == 404 => UNAVAILABLE
+    case ex: S3Exception if ex.statusCode() == 404 => UNAVAILABLE
     case ex: java.net.URISyntaxException                  =>
       // We can hit this when given a URL that looks like:
       //   s3://maven.custom/releases/javax/ws/rs/javax.ws.rs-api/2.1/javax.ws.rs-api-2.1.${packaging.type}
@@ -352,8 +359,8 @@ final class S3URLHandler extends URLHandler {
     debug(s"openStream($url)")
     
     val (client, bucket, key) = getClientBucketAndKey(url)
-    val obj: S3Object = client.getObject(bucket, key)
-    obj.getObjectContent()
+    val obj = client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build())
+    obj
   }
   
   /**
@@ -367,13 +374,13 @@ final class S3URLHandler extends URLHandler {
     // We want the prefix to have a trailing slash
     val prefix: String = key.stripSuffix("/") + "/"
     
-    val request: ListObjectsRequest = new ListObjectsRequest().withBucketName(bucket).withPrefix(prefix).withDelimiter("/")
+    val request: ListObjectsRequest = ListObjectsRequest.builder().bucket(bucket).prefix(prefix).delimiter("/").build()
     
-    val listing: ObjectListing = client.listObjects(request)
+    val listing: ListObjectsResponse = client.listObjects(request)
     
     require(!listing.isTruncated, "Truncated ObjectListing!  Making additional calls currently isn't implemented!")
     
-    val keys: Seq[String] = listing.getCommonPrefixes.asScala ++ listing.getObjectSummaries.asScala.map{ _.getKey }
+    val keys: Seq[String] = listing.commonPrefixes().asScala.map(_.prefix()) ++ listing.contents().asScala.map{ _.key() }
     
     val res: Seq[URL] = keys.map{ k: String =>
       new URL(url.toString.stripSuffix("/") + "/" + k.stripPrefix(prefix))
@@ -392,8 +399,8 @@ final class S3URLHandler extends URLHandler {
     val event: CopyProgressEvent = new CopyProgressEvent()
     if (null != l) l.start(event)
     
-    val meta: ObjectMetadata = client.getObject(new GetObjectRequest(bucket, key), dest)
-    dest.setLastModified(meta.getLastModified.getTime)
+    val meta: GetObjectResponse = client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build(), dest.toPath)
+    dest.setLastModified(meta.lastModified().toEpochMilli)
     
     if (null != l) l.end(event) //l.progress(evt.update(EMPTY_BUFFER, 0, meta.getContentLength))
   }
@@ -407,25 +414,22 @@ final class S3URLHandler extends URLHandler {
     val (client, bucket, key) = getClientBucketAndKey(dest)
 
     // Nested helper method for performing the actual PUT
-    def putImpl(serverSideEncryption: Boolean): PutObjectResult = {
-      val meta: ObjectMetadata = new ObjectMetadata()
-      if (serverSideEncryption) meta.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION)
-
-      val customizers = Seq[PutObjectRequest => PutObjectRequest](
+    def putImpl(serverSideEncryption: Boolean): PutObjectResponse = {
+      val customizers = Seq[PutObjectRequest.Builder => PutObjectRequest.Builder](
         // add metadata
-        x => {x.withMetadata(meta)},
+        x => {if (serverSideEncryption) x.serverSideEncryption(ServerSideEncryption.AES256) else x},
         // add bucket ACL
         x => {
           bucketACLMap.get(bucket) match {
-            case Some(y) => x.withCannedAcl(y)
+            case Some(y) => x.acl(y)
             case None => x
           }
         }
       )
 
-      val req = customizers.foldLeft(new PutObjectRequest(bucket, key, src))((putObjectRequest, customizer) => customizer(putObjectRequest))
+      val req = customizers.foldLeft(PutObjectRequest.builder().bucket(bucket).key(key))((putObjectRequest, customizer) => customizer(putObjectRequest))
 
-      client.putObject(req)
+      client.putObject(req.build(), src.toPath)
     }
 
     // Do we know for sure that this bucket requires SSE?
@@ -439,11 +443,11 @@ final class S3URLHandler extends URLHandler {
         // We either don't require SSE or don't know yet so we try without SSE enabled
         putImpl(false)
       } catch {
-        case ex: AmazonS3Exception if ex.getStatusCode() == 403 =>
+        case ex: S3Exception if ex.statusCode() == 403 =>
           debug(s"upload($src, $dest) failed with a 403 status code.  Retrying with Server Side Encryption Enabled.")
 
           // Retry with SSE
-          val res: PutObjectResult = putImpl(true)
+          val res: PutObjectResponse = putImpl(true)
 
           // If that succeeded then save the fact that we require SSE for future requests
           bucketRequiresSSE.put(bucket, true)
@@ -461,24 +465,25 @@ final class S3URLHandler extends URLHandler {
   def setRequestMethod(requestMethod: Int): Unit = debug(s"setRequestMethod($requestMethod)")
   
   // Try to get the region of the S3 URL so we can set it on the S3Client
-  def getRegion(url: URL, bucket: String/*, client: AmazonS3*/): Regions = {
+  def getRegion(url: URL, bucket: String/*, client: AmazonS3*/): Region = {
     getRegionNameFromURL(url).toOptionalRegion orElse
-      getRegionNameFromDNS(bucket).toOptionalRegion orElse
-      Option(Regions.getCurrentRegion()).map{ _.getName }.toOptionalRegion getOrElse
-      Regions.DEFAULT_REGION
+      getRegionNameFromDNS(bucket).toOptionalRegion getOrElse
+      //Option(Region.getCurrentRegion()).map{ _.getName }.toOptionalRegion getOrElse
+      Region.US_EAST_1
   }
 
   private implicit class RichStringOption(s: Option[String]) {
-    def toOptionalRegion: Option[Regions] = s.flatMap{ _.toOptionalRegion }
+    def toOptionalRegion: Option[Region] = s.flatMap{ _.toOptionalRegion }
   }
 
   private implicit class RichString(s: String) {
-    def toOptionalRegion: Option[Regions] = Try{ Regions.fromName(s) }.toOption
+    def toOptionalRegion: Option[Region] = Try{ Region.of(s) }.toOption
   }
 
   def getRegionNameFromURL(url: URL): Option[String] = {
     // We'll try the AmazonS3URI parsing first then fallback to our RegionMatcher
-    getAmazonS3URI(url).map{ _.getRegion }.flatMap{ Option(_) } orElse RegionMatcher.findFirstIn(url.toString)
+    //getAmazonS3URI(url).map{ _.getRegion }.flatMap{ Option(_) } orElse RegionMatcher.findFirstIn(url.toString)
+    ???
   }
 
 
