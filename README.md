@@ -8,6 +8,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
+- [SBT 1.X Support](#sbt-1x-support)
 - [SBT 1.3 Support](#sbt-13-support)
 - [SBT 1.1 Support](#sbt-11-support)
 - [SBT 1.0 Support](#sbt-10-support)
@@ -31,11 +32,15 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
   - [Releases Read-Only, Snapshots Read/Write](#releases-read-only-snapshots-readwrite)
 - [IAM Role Policy Examples](#iam-role-policy-examples)
 - [S3 Server-Side Encryption](#s3-server-side-encryption)
-- [Authors](#authors)
+- [Maintainer](#maintainer)
 - [Copyright](#copyright)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## SBT 1.X Support
+
+Recent versions of this plugin should work fine on all SBT 1.X versions. If you run into problems please open up an Issue.
 
 ## SBT 1.3 Support
 
