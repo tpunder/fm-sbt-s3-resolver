@@ -32,7 +32,7 @@ scriptedLaunchOpts ++= Seq("-Xmx1024M", "-Dplugin.version=" + version.value)
 
 crossSbtVersions := Vector("0.13.18", "1.1.0")
 
-val amazonSDKVersion = "1.12.134"
+val amazonSDKVersion = "1.12.597"
 
 libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-java-sdk-s3" % amazonSDKVersion,
