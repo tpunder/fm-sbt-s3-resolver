@@ -231,6 +231,11 @@ object S3URLHandler {
     if (cname.isEmpty || cname.exists{ matches.contains(_) }) matches
     else getDNSAliasesForHost(cname.get, cname.get :: matches)
   }
+
+  def getEnvOrProp(key: String): Option[String] = {
+    sys.props.get(key.replaceAllLiterally("_", ".").toLowerCase) orElse
+      sys.env.get(key)
+  }
 }
 
 /**
@@ -292,22 +297,27 @@ final class S3URLHandler extends URLHandler {
     if (null == client) {
       // This allows you to change the S3 endpoint and signing region to point to a non-aws S3 implementation (e.g. LocalStack).
       val endpointConfiguration: Option[EndpointConfiguration] = for {
-        serviceEndpoint: String <- Option(System.getenv("S3_SERVICE_ENDPOINT"))
-        signingRegion: String <- Option(System.getenv("S3_SIGNING_REGION"))
+        serviceEndpoint: String <- getEnvOrProp("S3_SERVICE_ENDPOINT")
+        signingRegion: String <- getEnvOrProp("S3_SIGNING_REGION")
       } yield new EndpointConfiguration(serviceEndpoint, signingRegion)
 
       // Path Style Access is deprecated by Amazon S3 but LocalStack seems to want to use it
-      val pathStyleAccess: Boolean = Option(System.getenv("S3_PATH_STYLE_ACCESS")).map{ _.toBoolean }.getOrElse(false)
+      val pathStyleAccess: Boolean = getEnvOrProp("S3_PATH_STYLE_ACCESS").map{ _.toBoolean }.getOrElse(false)
+
+      // This can cause problems in LocalStack trying to lookup via s3.amazonaws.com
+      val forceGlobalBucketAccess: Boolean = getEnvOrProp("S3_FORCE_GLOBAL_BUCKET_ACCESS").map{ _.toBoolean }.getOrElse(true)
 
       val tmp: AmazonS3ClientBuilder = AmazonS3Client.builder()
         .withCredentials(getCredentialsProvider(bucket))
         .withClientConfiguration(getProxyConfiguration)
-        .withForceGlobalBucketAccessEnabled(true)
+        .withForceGlobalBucketAccessEnabled(forceGlobalBucketAccess)
         .withPathStyleAccessEnabled(pathStyleAccess)
 
       // Only one of the endpointConfiguration or region can be set at a time.
       client = (endpointConfiguration match {
-        case Some(endpoint) => tmp.withEndpointConfiguration(endpoint)
+        case Some(endpoint) =>
+          Message.info("S3URLHandler - Using S3 Endpoint: " + endpoint.getServiceEndpoint + ", signingRegion: " + endpoint.getSigningRegion)
+          tmp.withEndpointConfiguration(endpoint)
         case None => tmp.withRegion(getRegion(url, bucket))
       }).build()
 
