@@ -297,12 +297,15 @@ final class S3URLHandler extends URLHandler {
       } yield new EndpointConfiguration(serviceEndpoint, signingRegion)
 
       // Path Style Access is deprecated by Amazon S3 but LocalStack seems to want to use it
-      val pathStyleAccess: Boolean = Option(System.getenv("S3_PATH_STYLE_ACCESS")).map{ _.toBoolean }.getOrElse(false)
+      val pathStyleAccess: Boolean = Option(System.getenv("S3_PATH_STYLE_ACCESS")).exists(_.toBoolean)
+
+      // Rerouting can cause replacing the user custom endpoint with the S3 default one (s3.amazonaws.com). Default is true
+      val forceGlobalBucketAccessEnabled: Boolean = Option(System.getenv("S3_FORCE_GLOBAL_BUCKET_ACCESS")).forall(_.toBoolean)
 
       val tmp: AmazonS3ClientBuilder = AmazonS3Client.builder()
         .withCredentials(getCredentialsProvider(bucket))
         .withClientConfiguration(getProxyConfiguration)
-        .withForceGlobalBucketAccessEnabled(true)
+        .withForceGlobalBucketAccessEnabled(forceGlobalBucketAccessEnabled)
         .withPathStyleAccessEnabled(pathStyleAccess)
 
       // Only one of the endpointConfiguration or region can be set at a time.
