@@ -1,4 +1,4 @@
-# Frugal Mechanic SBT S3 Resolver
+# FM SBT S3 Resolver
 
 [![Build and Tests](https://github.com/tpunder/fm-sbt-s3-resolver/actions/workflows/build.yml/badge.svg)](https://github.com/tpunder/fm-sbt-s3-resolver/actions/workflows/build.yml) [![fm-sbt-s3-resolver Scala version support](https://index.scala-lang.org/tpunder/fm-sbt-s3-resolver/fm-sbt-s3-resolver/latest-by-scala-version.svg?targetType=Sbt)](https://index.scala-lang.org/tpunder/fm-sbt-s3-resolver/fm-sbt-s3-resolver)
 
@@ -402,10 +402,6 @@ Example:
 ## Maintainer
 
 Tim Underwood (<a href="https://github.com/tpunder" rel="author">GitHub</a>, <a href="https://www.linkedin.com/in/tpunder" rel="author">LinkedIn</a>, <a href="https://twitter.com/tpunder" rel="author">Twitter</a>)
-
-## Copyright
-
-Copyright [Frugal Mechanic](http://frugalmechanic.com)
 
 ## License
 
