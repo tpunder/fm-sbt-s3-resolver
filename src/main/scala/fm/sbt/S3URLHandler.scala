@@ -222,7 +222,7 @@ object S3URLHandler {
     val cname: Option[String] = try {
       val attrs: Attributes = dnsContext.getAttributes(host, Array("CNAME"))
       Option(attrs.get("CNAME"))
-        .flatMap{ attr: Attribute => Option(attr.get) }
+        .flatMap{ (attr: Attribute) => Option(attr.get) }
         .collectFirst{ case res: String => res }
     } catch {
       case _: NamingException => None
@@ -378,7 +378,7 @@ final class S3URLHandler extends URLHandler {
     
     val keys: Seq[String] = listing.getCommonPrefixes.asScala ++ listing.getObjectSummaries.asScala.map{ _.getKey }
     
-    val res: Seq[URL] = keys.map{ k: String =>
+    val res: Seq[URL] = keys.map{ (k: String) =>
       new URL(url.toString.stripSuffix("/") + "/" + k.stripPrefix(prefix))
     }
     
@@ -494,7 +494,7 @@ final class S3URLHandler extends URLHandler {
   def getBucketAndKey(url: URL): (String, String) = {
     // The AmazonS3URI constructor should work for standard S3 urls.  But if a custom domain is being used
     // (e.g. snapshots.maven.frugalmechanic.com) then we treat the hostname as the bucket and the path as the key
-    getAmazonS3URI(url).map{ amzn: AmazonS3URI =>
+    getAmazonS3URI(url).map{ (amzn: AmazonS3URI) =>
       (amzn.getBucket, amzn.getKey)
     }.getOrElse {
       // Probably a custom domain name - The host should be the bucket and the path the key
