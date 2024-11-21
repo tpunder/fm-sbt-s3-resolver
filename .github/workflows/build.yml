@@ -8,7 +8,7 @@ jobs:
   get_scala_versions:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: tpunder/cross-scala-versions@master
         id: run
     outputs:
@@ -27,7 +27,7 @@ jobs:
         sbt: ${{ fromJson(needs.get_scala_versions.outputs.sbt_versions) }}
     name: Build/Test - SBT ${{ matrix.sbt }}, Java ${{ matrix.Java }} (${{ matrix.os }})
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Setup Java
         uses: actions/setup-java@v2
         with:
@@ -62,7 +62,7 @@ jobs:
             java: 17
     name: Scripted - SBT ${{ matrix.sbt }}, Java ${{ matrix.Java }} (${{ matrix.os }})
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Setup Java
         uses: actions/setup-java@v2
         with:
