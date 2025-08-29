@@ -33,6 +33,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
+      - uses: sbt/setup-sbt@v1
       - run: sbt ^^${{ matrix.sbt }} test
 
   # This runs the SBT "scripted" tests
@@ -69,6 +70,7 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
       
+      - uses: sbt/setup-sbt@v1
       #
       # Test using S3 if we can access the secrets
       #
