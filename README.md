@@ -8,6 +8,7 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
 
+- [SBT 2.X Support](#sbt-2x-support)
 - [SBT 1.X Support](#sbt-1x-support)
 - [SBT 1.3 Support](#sbt-13-support)
 - [SBT 1.1 Support](#sbt-11-support)
@@ -37,6 +38,10 @@ This SBT plugin adds support for using Amazon S3 for resolving and publishing us
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## SBT 2.X Support
+
+This plugin is cross-built for SBT 2.X (Scala 3). Note: it relies on SBT's Ivy support (`RawRepository`), which is not yet verified against Coursier-based resolution.
 
 ## SBT 1.X Support
 

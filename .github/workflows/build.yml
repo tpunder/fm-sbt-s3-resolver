@@ -5,18 +5,8 @@ on:
   pull_request:
 
 jobs:
-  get_scala_versions:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: tpunder/cross-scala-versions@master
-        id: run
-    outputs:
-      sbt_versions: ${{ steps.run.outputs.sbt_versions }}
-
   # This builds and runs local tests
   build:
-    needs: get_scala_versions
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -24,8 +14,7 @@ jobs:
         #os: [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ]
         os: [ 'ubuntu-latest' ]
         java: [ '8', '11', '17' ]
-        sbt: ${{ fromJson(needs.get_scala_versions.outputs.sbt_versions) }}
-    name: Build/Test - SBT ${{ matrix.sbt }}, Java ${{ matrix.Java }} (${{ matrix.os }})
+    name: Build/Test - Java ${{ matrix.Java }} (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v2
       - name: Setup Java
@@ -33,7 +22,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
-      - run: sbt ^^${{ matrix.sbt }} test
+      - run: sbt +test
 
   # This runs the SBT "scripted" tests
   scripted:
@@ -73,11 +62,11 @@ jobs:
       # Test using S3 if we can access the secrets
       #
 
-      # This will publishLocal for all crossSbtVersions then test example apps
+      # This will publishLocal for all crossScalaVersions (sbt 1.x and 2.x) then test example apps
       # using the matrix.sbt version. For example we will publish the 0.13 and
       # 1.0 compatible versions of the plugin (via our configured
       # crossSbtVersions) and then test using a wider range of SBT versions.
-      - run: sbt -v ^publishLocal ^^${{ matrix.sbt }} scripted
+      - run: sbt -v +publishLocal ^^${{ matrix.sbt }} scripted
         if: ${{ github.event_name == 'push' }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -101,11 +90,11 @@ jobs:
           localstack wait -t 30
           echo "LocalStack Startup complete"
           awslocal s3api create-bucket --bucket fm-sbt-s3-resolver-example-bucket
-      # This will publishLocal for all crossSbtVersions then test example apps
+      # This will publishLocal for all crossScalaVersions (sbt 1.x and 2.x) then test example apps
       # using the matrix.sbt version. For example we will publish the 0.13 and
       # 1.0 compatible versions of the plugin (via our configured
       # crossSbtVersions) and then test using a wider range of SBT versions.
-      - run: sbt -v ^publishLocal ^^${{ matrix.sbt }} scripted
+      - run: sbt -v +publishLocal ^^${{ matrix.sbt }} scripted
         if: ${{ github.event_name == 'pull_request' }}
         env:
           # LocalStack Notes:
