@@ -24,7 +24,13 @@ jobs:
           java-version: ${{ matrix.java }}
       - name: Setup sbt
         uses: sbt/setup-sbt@v1
-      - run: sbt +test
+      # The sbt 2.x / Scala 3 cross build needs Java 17+ (compiler bridge is class version 61)
+      - name: Test (sbt 1.x only)
+        if: ${{ matrix.java != '17' }}
+        run: sbt test
+      - name: Test (all cross builds)
+        if: ${{ matrix.java == '17' }}
+        run: sbt +test
 
   # This runs the SBT "scripted" tests
   scripted:
