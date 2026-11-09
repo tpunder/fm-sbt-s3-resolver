@@ -82,7 +82,7 @@ object S3ResolverPlugin extends AutoPlugin {
           log.error("Too many arguments for showS3Credentials")
       }
     },
-    onLoad in Global := (onLoad in Global).value andThen { state =>
+    Global / onLoad := (Global / onLoad).value andThen { state =>
       def info: String => Unit = state.log.info(_)
       def debug: String => Unit = state.log.debug(_)
 

@@ -30,7 +30,20 @@ scriptedDependencies := {}
 
 scriptedLaunchOpts ++= Seq("-Xmx1024M", "-Dplugin.version=" + version.value)
 
-crossSbtVersions := Vector("0.13.18", "1.1.0")
+val scala212 = "2.12.20"
+val scala3 = "3.8.4"
+
+scalaVersion := scala212
+
+crossScalaVersions := Seq(scala212, scala3)
+
+// sbt 1.x plugins are built with Scala 2.12 and sbt 2.x plugins with Scala 3
+pluginCrossBuild / sbtVersion := {
+  scalaBinaryVersion.value match {
+    case "2.12" => "1.5.8"
+    case _      => "2.0.12"
+  }
+}
 
 val amazonSDKVersion = "1.12.597"
 

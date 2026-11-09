@@ -5,18 +5,8 @@ on:
   pull_request:
 
 jobs:
-  get_scala_versions:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: tpunder/cross-scala-versions@master
-        id: run
-    outputs:
-      sbt_versions: ${{ steps.run.outputs.sbt_versions }}
-
   # This builds and runs local tests
   build:
-    needs: get_scala_versions
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -24,8 +14,7 @@ jobs:
         #os: [ 'ubuntu-latest', 'macos-latest', 'windows-latest' ]
         os: [ 'ubuntu-latest' ]
         java: [ '8', '11', '17' ]
-        sbt: ${{ fromJson(needs.get_scala_versions.outputs.sbt_versions) }}
-    name: Build/Test - SBT ${{ matrix.sbt }}, Java ${{ matrix.Java }} (${{ matrix.os }})
+    name: Build/Test - Java ${{ matrix.Java }} (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v2
       - name: Setup Java
@@ -33,13 +22,20 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
-      - run: sbt ^^${{ matrix.sbt }} test
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+      # The sbt 2.x / Scala 3 cross build needs Java 17+ (compiler bridge is class version 61)
+      - name: Test (sbt 1.x only)
+        if: ${{ matrix.java != '17' }}
+        run: sbt test
+      - name: Test (all cross builds)
+        if: ${{ matrix.java == '17' }}
+        run: sbt +test
 
   # This runs the SBT "scripted" tests
   scripted:
     needs: build # Don't bother running the scripted tests if the main build/test fails.
     runs-on: ${{ matrix.os }}
-    environment: fm-sbt-s3-resolver-example-bucket # This is the GitHub environment that holds the AWS secrets referenced below
     strategy:
       fail-fast: false
       matrix:
@@ -47,19 +43,18 @@ jobs:
         os: [ 'ubuntu-latest' ]
         java: [ '8', '11', '17' ]
         sbt:
-          - 0.13.18
-          - 1.1.6
-          - 1.2.8
-          - 1.3.13
-          - 1.4.9
-          - 1.5.8
-          - 1.6.1
+          - 1.13.1
+          - 2.0.12
+        include:
+          - sbt: 1.13.1
+            scala: 2.12.20
+          - sbt: 2.0.12
+            scala: 3.8.4
         exclude:
-          # These SBT versions don't work on Java 17
-          - sbt: 1.1.6
-            java: 17
-          - sbt: 1.2.8
-            java: 17
+          - sbt: 2.0.12
+            java: 8
+          - sbt: 2.0.12
+            java: 11
     name: Scripted - SBT ${{ matrix.sbt }}, Java ${{ matrix.Java }} (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v2
@@ -68,45 +63,21 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
-      
-      #
-      # Test using S3 if we can access the secrets
-      #
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
 
-      # This will publishLocal for all crossSbtVersions then test example apps
-      # using the matrix.sbt version. For example we will publish the 0.13 and
-      # 1.0 compatible versions of the plugin (via our configured
-      # crossSbtVersions) and then test using a wider range of SBT versions.
-      - run: sbt -v ^publishLocal ^^${{ matrix.sbt }} scripted
-        if: ${{ github.event_name == 'push' }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
-      
-      #
-      # Test using LocalStack if no access to secrets
-      #
-      
       - name: Start LocalStack
-        if: ${{ github.event_name == 'pull_request' }}
         run: |
-          # install LocalStack cli and awslocal
-          pip install localstack awscli-local[ver1]
-          # Make sure to pull the latest version of the image
-          docker pull localstack/localstack
-          # Start LocalStack in the background
-          SERVICES=s3 localstack start -d
-          # Wait 30 seconds for the LocalStack container to become ready before timing out
+          docker run -d --name localstack -p 4566:4566 -e SERVICES=s3 localstack/localstack:0.13.3
           echo "Waiting for LocalStack startup..."
-          localstack wait -t 30
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4566/health | grep -q '"s3": "running"' && break
+            sleep 2
+          done
           echo "LocalStack Startup complete"
-          awslocal s3api create-bucket --bucket fm-sbt-s3-resolver-example-bucket
-      # This will publishLocal for all crossSbtVersions then test example apps
-      # using the matrix.sbt version. For example we will publish the 0.13 and
-      # 1.0 compatible versions of the plugin (via our configured
-      # crossSbtVersions) and then test using a wider range of SBT versions.
-      - run: sbt -v ^publishLocal ^^${{ matrix.sbt }} scripted
-        if: ${{ github.event_name == 'pull_request' }}
+          curl -sf -X PUT http://localhost:4566/fm-sbt-s3-resolver-example-bucket
+
+      - run: sbt -v ++${{ matrix.scala }} publishLocal 'set scriptedSbt := "${{ matrix.sbt }}"' scripted
         env:
           # LocalStack Notes:
           #  - Seems to want Path Style Access (which is deprecated in AWS S3)
