@@ -36,7 +36,6 @@ jobs:
   scripted:
     needs: build # Don't bother running the scripted tests if the main build/test fails.
     runs-on: ${{ matrix.os }}
-    environment: fm-sbt-s3-resolver-example-bucket # This is the GitHub environment that holds the AWS secrets referenced below
     strategy:
       fail-fast: false
       matrix:
@@ -47,13 +46,11 @@ jobs:
           - 1.13.1
           - 2.0.12
         include:
-          # sbt 1.x plugins are built with Scala 2.12 and sbt 2.x plugins with Scala 3
           - sbt: 1.13.1
             scala: 2.12.20
           - sbt: 2.0.12
             scala: 3.8.4
         exclude:
-          # sbt 2.x requires Java 17+
           - sbt: 2.0.12
             java: 8
           - sbt: 2.0.12
@@ -68,43 +65,19 @@ jobs:
           java-version: ${{ matrix.java }}
       - name: Setup sbt
         uses: sbt/setup-sbt@v1
-      
-      #
-      # Test using S3 if we can access the secrets
-      #
 
-      # This will publishLocal the plugin for the matrix.scala version (sbt 1.x or 2.x) then test
-      # example apps using the matrix.sbt version. We set scriptedSbt rather than using ^^ because
-      # ^^ creates a cyclic reference with our pluginCrossBuild / sbtVersion override.
-      - run: sbt -v ++${{ matrix.scala }} publishLocal 'set scriptedSbt := "${{ matrix.sbt }}"' scripted
-        if: ${{ github.event_name == 'push' }}
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
-      
-      #
-      # Test using LocalStack if no access to secrets
-      #
-      
       - name: Start LocalStack
-        if: ${{ github.event_name == 'pull_request' }}
         run: |
-          # install LocalStack cli and awslocal
-          pip install localstack awscli-local[ver1]
-          # Make sure to pull the latest version of the image
-          docker pull localstack/localstack
-          # Start LocalStack in the background
-          SERVICES=s3 localstack start -d
-          # Wait 30 seconds for the LocalStack container to become ready before timing out
+          docker run -d --name localstack -p 4566:4566 -e SERVICES=s3 localstack/localstack:0.13.3
           echo "Waiting for LocalStack startup..."
-          localstack wait -t 30
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4566/health | grep -q '"s3": "running"' && break
+            sleep 2
+          done
           echo "LocalStack Startup complete"
-          awslocal s3api create-bucket --bucket fm-sbt-s3-resolver-example-bucket
-      # This will publishLocal the plugin for the matrix.scala version (sbt 1.x or 2.x) then test
-      # example apps using the matrix.sbt version. We set scriptedSbt rather than using ^^ because
-      # ^^ creates a cyclic reference with our pluginCrossBuild / sbtVersion override.
+          curl -sf -X PUT http://localhost:4566/fm-sbt-s3-resolver-example-bucket
+
       - run: sbt -v ++${{ matrix.scala }} publishLocal 'set scriptedSbt := "${{ matrix.sbt }}"' scripted
-        if: ${{ github.event_name == 'pull_request' }}
         env:
           # LocalStack Notes:
           #  - Seems to want Path Style Access (which is deprecated in AWS S3)
